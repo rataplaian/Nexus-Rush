@@ -37,6 +37,7 @@ import {
   legalTeleportDestinations,
   placeStructure
 } from './src/game/actions';
+import { chooseAINexusPositions, runAITurn } from './src/game/ai';
 import { MAPS } from './src/game/maps';
 import {
   isLegalNexusCell,
@@ -69,13 +70,6 @@ const terrainNames: Record<TerrainType, string> = {
 
 function samePosition(a: Position, b: Position) {
   return a.x === b.x && a.y === b.y;
-}
-
-function mirroredOpponentPositions(map: MapDefinition, positions: Position[]): Position[] {
-  return positions.map((position) => ({
-    x: position.x,
-    y: map.height - 1 - position.y
-  }));
 }
 
 export default function App() {
@@ -125,7 +119,7 @@ export default function App() {
   function startMatch() {
     if (!canConfirm) return;
     const enemyDeckId = deckId === 'arcane' ? 'bastion' : 'arcane';
-    const enemyNexuses = mirroredOpponentPositions(map, nexuses);
+    const enemyNexuses = chooseAINexusPositions(map, 1);
 
     const created = createGame(mode, nexuses, enemyNexuses, deckId, enemyDeckId);
     setGame(startActivePlayerTurn(created));
@@ -486,8 +480,19 @@ function GameScreen(props: {
 
   function handleEndTurn() {
     if (props.game.winner !== null) return;
-    const switched = endTurn(props.game);
-    props.setGame(startActivePlayerTurn(switched));
+
+    let next = startActivePlayerTurn(endTurn(props.game));
+
+    if (next.activePlayer === 1 && next.winner === null) {
+      const ai = runAITurn(next, 'challenging');
+      next = ai.state;
+
+      if (next.winner === null) {
+        next = startActivePlayerTurn(endTurn(next));
+      }
+    }
+
+    props.setGame(next);
     props.setSelectedHandIndex(null);
     props.setSelectedUnitId(null);
     props.setSelectedStructureId(null);
@@ -519,7 +524,7 @@ function GameScreen(props: {
         </View>
 
         <Text style={styles.sandboxNote}>
-          Sandbox manuale: il Giocatore 2 è controllato manualmente finché non viene implementata l'AI.
+          Single player · Giocatore 2 controllato dall'AI tattica. Valuta Nexus, terreno, minacce, focus fire, mana, magie e posizionamento.
         </Text>
 
         <BattleBoard
