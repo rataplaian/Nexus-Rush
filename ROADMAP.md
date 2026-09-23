@@ -51,10 +51,12 @@
 - move-before-attack vs attack-before-move evaluation
 - architecture ready for future difficulty profiles
 
-## Task 007 — UX and presentation
-- card hand layout
-- movement/range overlays
-- terrain art
-- unit tokens
+## Task 007 — UX and presentation (in progress)
+- ✅ illustrated five-card hand with dynamic stats/effects
+- ✅ vertical stat rail with icons for cost, Life, Movement, Range and Attack
+- ✅ subdued illustrated terrain underlay beneath the authoritative grid
+- ✅ rectangular illustrated unit/structure pawns on the battlefield
+- ✅ movement/range/target overlays remain visible over the artwork
 - effects/animation
 - sound
+- final responsive/mobile polish
