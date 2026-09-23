@@ -10,14 +10,21 @@ Movement is orthogonal only. Diagonal movement is not legal.
 
 The objective is to destroy the enemy Nexus objective defined by the selected game mode.
 
-## 2. Decks
+## 2. Decks and hand
 
 - A deck contains exactly **20 cards**.
 - Maximum **2 copies** of the same card.
 - Each card has an individual Mana cost.
-- Initial prototype archetypes:
-  - **Arcanisti del Nexus**: spells, control and ranged pressure.
-  - **Ordine del Bastione**: paladins, melee pressure and limited ranged support.
+- Prototype hand size: **5 cards**.
+- Each player begins with 5 cards.
+- At the start of each personal turn, after receiving Mana, the hand refills up to 5 cards from the draw pile.
+- Played unit cards leave the hand and exist on the battlefield; they are not immediately replaced.
+- When the draw pile is empty, no additional cards are created.
+- The prototype currently uses deterministic deck ordering for repeatable tests; final shuffle/randomization is deferred.
+
+Initial prototype archetypes:
+- **Arcanisti del Nexus**: spells, control and ranged pressure.
+- **Ordine del Bastione**: paladins, melee pressure and limited ranged support.
 
 ## 3. Card types
 
@@ -32,6 +39,15 @@ Minimum characteristics:
 
 Units are normally deployed in the first **2 rows** of their player's side.
 
+A unit deployment:
+- requires sufficient Mana
+- consumes the card's Mana cost
+- removes that card from hand
+- requires an accessible, unoccupied cell
+- cannot overlap a Nexus, unit or structure
+
+Movement and attacks after deployment are handled by later tasks.
+
 ### Structures
 
 Structures remain on a grid cell and have their own Life and, when appropriate, Range and Attack.
@@ -42,7 +58,7 @@ Their card text defines where they may be placed. Examples include a maximum dis
 
 Spells resolve their effect and are discarded. They do not occupy a board cell after resolution.
 
-## 4. Mana
+## 4. Mana and turns
 
 Mana is banked: unused Mana remains available.
 
@@ -54,6 +70,14 @@ Income is based on each player's own turn count so both players reach the same i
 - every further block of 5 turns: +1 additional Mana per turn
 
 There is currently no Mana cap.
+
+Turn baseline:
+1. start turn
+2. gain Mana
+3. refill hand up to 5
+4. take game actions
+5. end turn
+6. opponent begins their turn
 
 ## 5. Terrain
 
@@ -142,7 +166,7 @@ Detailed targeting, path-based line of sight, reactions and card ability timing 
 
 ## 9. Current implementation boundary
 
-Task 001 establishes:
+Tasks 001–002 establish:
 - Expo/React Native foundation
 - card data model
 - two 20-card starter decks
@@ -150,7 +174,11 @@ Task 001 establishes:
 - Mana progression
 - Nexus setup validation
 - Nexus Life and win condition
-- first setup UI
+- opening hands and draw piles
+- turn start/end state
+- hand refill
+- unit deployment and board occupancy
+- interactive prototype UI
 - automated baseline tests
 
-Unit deployment, hand/draw rules, pathfinding, attacks, structures, spell resolution and AI will be layered on top rather than embedded into the foundation.
+Movement, attacks, structures, spell resolution and AI will be layered on top rather than embedded into the foundation.

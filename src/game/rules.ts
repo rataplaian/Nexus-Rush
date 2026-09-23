@@ -3,6 +3,7 @@ import { GameMode, MapDefinition, PlayerId, Position, TerrainType } from './type
 export const NEXUS_MAX_LIFE = 10;
 export const MAX_CARD_COPIES = 2;
 export const DECK_SIZE = 20;
+export const HAND_SIZE = 5;
 
 export function manaIncomeForPersonalTurn(personalTurn: number): number {
   if (personalTurn < 1) return 0;

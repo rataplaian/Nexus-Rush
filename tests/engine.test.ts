@@ -1,22 +1,47 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { STARTER_DECKS, validateDeck } from '../src/game/cards';
+import { CARDS, STARTER_DECKS, validateDeck } from '../src/game/cards';
 import { HORIZONTAL_VALLEY, VERTICAL_PASS } from '../src/game/maps';
 import {
   attackModifierForTerrain,
   blocksLineOfSight,
   blocksMovement,
+  HAND_SIZE,
   manaIncomeForPersonalTurn,
   movementCost,
   validateNexusPositions
 } from '../src/game/rules';
-import { createGame, damageNexus, endTurn, startActivePlayerTurn } from '../src/game/engine';
+import {
+  createGame,
+  damageNexus,
+  deployUnit,
+  endTurn,
+  getLegalUnitDeploymentCells,
+  startActivePlayerTurn
+} from '../src/game/engine';
+
+function verticalGame() {
+  return createGame(
+    'vertical-single-nexus',
+    [{ x: 3, y: 11 }],
+    [{ x: 3, y: 0 }]
+  );
+}
 
 test('starter decks contain 20 cards and never exceed two copies', () => {
   for (const deck of STARTER_DECKS) {
     assert.deepEqual(validateDeck(deck), []);
     assert.equal(deck.cardIds.length, 20);
   }
+});
+
+test('new games start with five-card hands and fifteen cards remaining', () => {
+  const state = verticalGame();
+  assert.equal(state.players[0].hand.length, HAND_SIZE);
+  assert.equal(state.players[0].drawPile.length, 15);
+  assert.equal(state.players[1].hand.length, HAND_SIZE);
+  assert.equal(state.players[1].drawPile.length, 15);
+  assert.equal(new Set(state.players[0].hand).size, 5);
 });
 
 test('mana income grows every five personal turns', () => {
@@ -71,11 +96,7 @@ test('destroying one nexus wins immediately in horizontal mode', () => {
 });
 
 test('mana is banked across active player turns', () => {
-  let state = createGame(
-    'vertical-single-nexus',
-    [{ x: 3, y: 11 }],
-    [{ x: 3, y: 0 }]
-  );
+  let state = verticalGame();
   state = startActivePlayerTurn(state);
   assert.equal(state.players[0].mana, 2);
   state = endTurn(state);
@@ -84,4 +105,69 @@ test('mana is banked across active player turns', () => {
   state = endTurn(state);
   state = startActivePlayerTurn(state);
   assert.equal(state.players[0].mana, 4);
+});
+
+test('a unit can be deployed in a legal free deployment cell and consumes mana/card', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+
+  const apprenticeIndex = state.players[0].hand.indexOf('arcane_apprentice');
+  assert.notEqual(apprenticeIndex, -1);
+  assert.equal(CARDS.arcane_apprentice.cost, 2);
+
+  const legal = getLegalUnitDeploymentCells(state, apprenticeIndex);
+  assert.ok(legal.length > 0);
+  const target = legal.find((cell) => !(cell.x === 3 && cell.y === 11));
+  assert.ok(target);
+
+  state = deployUnit(state, apprenticeIndex, target!);
+
+  assert.equal(state.players[0].mana, 0);
+  assert.equal(state.players[0].hand.length, 4);
+  assert.equal(state.units.length, 1);
+  assert.equal(state.units[0].cardId, 'arcane_apprentice');
+  assert.deepEqual(state.units[0].position, target);
+});
+
+test('occupied nexus cells cannot be used for deployment', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  const apprenticeIndex = state.players[0].hand.indexOf('arcane_apprentice');
+  const legal = getLegalUnitDeploymentCells(state, apprenticeIndex);
+
+  assert.equal(legal.some((cell) => cell.x === 3 && cell.y === 11), false);
+});
+
+test('hand refills to five at the start of the next personal turn', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  const apprenticeIndex = state.players[0].hand.indexOf('arcane_apprentice');
+  const target = getLegalUnitDeploymentCells(state, apprenticeIndex)[0];
+  state = deployUnit(state, apprenticeIndex, target);
+
+  assert.equal(state.players[0].hand.length, 4);
+  assert.equal(state.players[0].drawPile.length, 15);
+
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+
+  assert.equal(state.players[0].hand.length, 5);
+  assert.equal(state.players[0].drawPile.length, 14);
+});
+
+test('non-unit cards are not valid for unit deployment', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+
+  state = {
+    ...state,
+    players: [
+      { ...state.players[0], mana: 10, hand: ['fireball', ...state.players[0].hand.slice(1)] },
+      state.players[1]
+    ]
+  };
+
+  assert.deepEqual(getLegalUnitDeploymentCells(state, 0), []);
 });
