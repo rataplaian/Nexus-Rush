@@ -16,6 +16,7 @@ import {
   getLegalUnitDeploymentCells,
   startActivePlayerTurn
 } from './src/game/engine';
+import { getReachableMovement, moveUnit } from './src/game/movement';
 import { MAPS } from './src/game/maps';
 import {
   isLegalNexusCell,
@@ -64,6 +65,7 @@ export default function App() {
   const [nexuses, setNexuses] = useState<Position[]>([]);
   const [game, setGame] = useState<GameState | null>(null);
   const [selectedHandIndex, setSelectedHandIndex] = useState<number | null>(null);
+  const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
 
   const map = useMemo(
     () => MAPS.find((candidate) => candidate.mode === mode) ?? MAPS[0],
@@ -79,6 +81,7 @@ export default function App() {
     setNexuses([]);
     setGame(null);
     setSelectedHandIndex(null);
+    setSelectedUnitId(null);
     setScreen('setup');
   }
 
@@ -103,6 +106,7 @@ export default function App() {
     const created = createGame(mode, nexuses, enemyNexuses, deckId, enemyDeckId);
     setGame(startActivePlayerTurn(created));
     setSelectedHandIndex(null);
+    setSelectedUnitId(null);
     setScreen('game');
   }
 
@@ -110,6 +114,7 @@ export default function App() {
     setScreen('home');
     setGame(null);
     setSelectedHandIndex(null);
+    setSelectedUnitId(null);
     setNexuses([]);
   }
 
@@ -211,6 +216,8 @@ export default function App() {
       setGame={setGame}
       selectedHandIndex={selectedHandIndex}
       setSelectedHandIndex={setSelectedHandIndex}
+      selectedUnitId={selectedUnitId}
+      setSelectedUnitId={setSelectedUnitId}
       onExit={returnHome}
     />
   );
@@ -221,31 +228,64 @@ function GameScreen(props: {
   setGame: (game: GameState) => void;
   selectedHandIndex: number | null;
   setSelectedHandIndex: (index: number | null) => void;
+  selectedUnitId: string | null;
+  setSelectedUnitId: (unitId: string | null) => void;
   onExit: () => void;
 }) {
   const map = MAPS.find((candidate) => candidate.id === props.game.mapId) ?? MAPS[0];
   const player = props.game.players[props.game.activePlayer];
   const deck = STARTER_DECKS.find((candidate) => candidate.id === player.deckId);
-  const legalCells = props.selectedHandIndex === null
+  const deploymentCells = props.selectedHandIndex === null
     ? []
     : getLegalUnitDeploymentCells(props.game, props.selectedHandIndex);
+  const movementOptions = props.selectedUnitId === null
+    ? []
+    : getReachableMovement(props.game, props.selectedUnitId);
+  const movementCells = movementOptions.map((option) => option.position);
 
   function isLegalDeployment(position: Position) {
-    return legalCells.some((cell) => samePosition(cell, position));
+    return deploymentCells.some((cell) => samePosition(cell, position));
+  }
+
+  function isLegalMovement(position: Position) {
+    return movementCells.some((cell) => samePosition(cell, position));
   }
 
   function handleCellPress(position: Position) {
-    if (props.selectedHandIndex === null || !isLegalDeployment(position)) return;
+    const clickedUnit = props.game.units.find((unit) => samePosition(unit.position, position));
 
-    const updated = deployUnit(props.game, props.selectedHandIndex, position);
-    props.setGame(updated);
-    props.setSelectedHandIndex(null);
+    if (
+      clickedUnit &&
+      clickedUnit.owner === props.game.activePlayer &&
+      !clickedUnit.movedThisTurn
+    ) {
+      props.setSelectedUnitId(
+        props.selectedUnitId === clickedUnit.instanceId ? null : clickedUnit.instanceId
+      );
+      props.setSelectedHandIndex(null);
+      return;
+    }
+
+    if (props.selectedHandIndex !== null && isLegalDeployment(position)) {
+      const updated = deployUnit(props.game, props.selectedHandIndex, position);
+      props.setGame(updated);
+      props.setSelectedHandIndex(null);
+      props.setSelectedUnitId(null);
+      return;
+    }
+
+    if (props.selectedUnitId !== null && isLegalMovement(position)) {
+      const updated = moveUnit(props.game, props.selectedUnitId, position);
+      props.setGame(updated);
+      props.setSelectedUnitId(null);
+    }
   }
 
   function handleEndTurn() {
     const switched = endTurn(props.game);
     props.setGame(startActivePlayerTurn(switched));
     props.setSelectedHandIndex(null);
+    props.setSelectedUnitId(null);
   }
 
   return (
@@ -279,7 +319,9 @@ function GameScreen(props: {
         <BattleBoard
           map={map}
           game={props.game}
-          legalCells={legalCells}
+          deploymentCells={deploymentCells}
+          movementCells={movementCells}
+          selectedUnitId={props.selectedUnitId}
           onCellPress={handleCellPress}
         />
 
@@ -298,7 +340,10 @@ function GameScreen(props: {
               <TouchableOpacity
                 key={cardId + '-' + index}
                 disabled={!deployable}
-                onPress={() => props.setSelectedHandIndex(selected ? null : index)}
+                onPress={() => {
+                  props.setSelectedHandIndex(selected ? null : index);
+                  props.setSelectedUnitId(null);
+                }}
                 style={[
                   styles.handCard,
                   selected && styles.handCardSelected,
@@ -323,8 +368,8 @@ function GameScreen(props: {
         </View>
 
         <Text style={styles.gameHint}>
-          Seleziona un'unità dalla mano: le caselle valide delle prime 2 righe si evidenziano.
-          Il costo viene sottratto dal Mana solo quando confermi lo schieramento sulla plancia.
+          Seleziona una carta unità per schierarla, oppure tocca una tua unità sulla plancia per muoverla.
+          Le caselle evidenziate rispettano Movimento, terreni e ostacoli. Ogni unità può muoversi una volta per turno.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -394,7 +439,9 @@ function SetupBoard(props: {
 function BattleBoard(props: {
   map: MapDefinition;
   game: GameState;
-  legalCells: Position[];
+  deploymentCells: Position[];
+  movementCells: Position[];
+  selectedUnitId: string | null;
   onCellPress: (position: Position) => void;
 }) {
   const cellSize = props.map.width > props.map.height ? 27 : 34;
@@ -407,7 +454,9 @@ function BattleBoard(props: {
             const position = { x, y };
             const nexus = props.game.nexuses.find((item) => samePosition(item.position, position));
             const unit = props.game.units.find((item) => samePosition(item.position, position));
-            const legal = props.legalCells.some((item) => samePosition(item, position));
+            const deploymentLegal = props.deploymentCells.some((item) => samePosition(item, position));
+            const movementLegal = props.movementCells.some((item) => samePosition(item, position));
+            const selectedUnit = unit?.instanceId === props.selectedUnitId;
             const unitCard = unit ? CARDS[unit.cardId] : null;
 
             let label = terrainLabels[terrain];
@@ -423,11 +472,13 @@ function BattleBoard(props: {
                   styles.cell,
                   terrainStyle(terrain),
                   { width: cellSize, height: cellSize },
-                  legal && styles.deployCell,
+                  deploymentLegal && styles.deployCell,
+                  movementLegal && styles.moveCell,
                   nexus?.owner === 0 && styles.playerNexus,
                   nexus?.owner === 1 && styles.enemyNexus,
                   unit?.owner === 0 && styles.playerUnit,
-                  unit?.owner === 1 && styles.enemyUnit
+                  unit?.owner === 1 && styles.enemyUnit,
+                  selectedUnit && styles.selectedUnit
                 ]}
               >
                 <Text style={styles.cellText}>{label}</Text>
@@ -511,6 +562,8 @@ const styles = StyleSheet.create({
   hill: { backgroundColor: '#8b7445' },
   legalCell: { borderColor: '#5fe2ff', borderWidth: 1.5 },
   deployCell: { borderColor: '#d9ff6a', borderWidth: 2 },
+  moveCell: { borderColor: '#f6a8ff', borderWidth: 2 },
+  selectedUnit: { borderColor: '#ffffff', borderWidth: 3 },
   playerNexus: { backgroundColor: '#1687b2', borderColor: '#a7efff', borderWidth: 2 },
   enemyNexus: { backgroundColor: '#9c3b4c', borderColor: '#ffd1d8', borderWidth: 2 },
   playerUnit: { backgroundColor: '#2c8fae', borderColor: '#b5f2ff', borderWidth: 2 },
