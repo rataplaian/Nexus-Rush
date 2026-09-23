@@ -27,10 +27,20 @@ import {
 import {
   attackPowerForUnit,
   attackTarget,
+  attackWithStructure,
   getLegalAttackTargets,
+  getLegalStructureAttackTargets,
   hasLineOfSight,
   validateAttack
 } from '../src/game/combat';
+import {
+  castSpell,
+  getLegalStructurePlacementCells,
+  legalTeleportDestinations,
+  placeStructure
+} from '../src/game/actions';
+import { effectiveCardCost } from '../src/game/engine';
+import { effectiveMovementForUnit } from '../src/game/movement';
 
 function verticalGame() {
   return createGame(
@@ -198,7 +208,9 @@ test('movement is orthogonal and limited by the unit Movement value', () => {
       life: 4,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
-      attackedThisTurn: false
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
     }]
   };
 
@@ -223,7 +235,9 @@ test('water and mountains cannot be entered during movement', () => {
       life: 4,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
-      attackedThisTurn: false
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
     }]
   };
 
@@ -246,7 +260,9 @@ test('occupied cells block movement and cannot be crossed', () => {
         life: 4,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       },
       {
         instanceId: 'blocker',
@@ -256,7 +272,9 @@ test('occupied cells block movement and cannot be crossed', () => {
         life: 4,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       }
     ]
   };
@@ -279,7 +297,9 @@ test('a one-Movement unit can still climb an adjacent hill', () => {
       life: 9,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
-      attackedThisTurn: false
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
     }]
   };
 
@@ -300,7 +320,9 @@ test('descending from a hill grants one extra movement step', () => {
       life: 9,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
-      attackedThisTurn: false
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
     }]
   };
 
@@ -322,7 +344,9 @@ test('moving marks the unit as moved and prevents a second move that turn', () =
       life: 4,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
-      attackedThisTurn: false
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
     }]
   };
 
@@ -348,7 +372,9 @@ test('movement resets on that unit owner next turn', () => {
       life: 4,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
-      attackedThisTurn: false
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
     }]
   };
 
@@ -377,7 +403,9 @@ test('attack range uses orthogonal grid distance', () => {
         life: 4,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       },
       {
         instanceId: 'near',
@@ -387,7 +415,9 @@ test('attack range uses orthogonal grid distance', () => {
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       },
       {
         instanceId: 'far',
@@ -397,7 +427,9 @@ test('attack range uses orthogonal grid distance', () => {
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       }
     ]
   };
@@ -424,7 +456,9 @@ test('water does not block line of sight or ranged attacks', () => {
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       },
       {
         instanceId: 'target',
@@ -434,7 +468,9 @@ test('water does not block line of sight or ranged attacks', () => {
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       }
     ]
   };
@@ -461,7 +497,9 @@ test('mountains block line of sight and attacks', () => {
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       },
       {
         instanceId: 'target',
@@ -471,7 +509,9 @@ test('mountains block line of sight and attacks', () => {
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       }
     ]
   };
@@ -498,7 +538,9 @@ test('hill grants plus one Attack to the unit standing on it', () => {
         life: 7,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       },
       {
         instanceId: 'target',
@@ -508,7 +550,9 @@ test('hill grants plus one Attack to the unit standing on it', () => {
         life: 4,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       }
     ]
   };
@@ -532,7 +576,9 @@ test('attacking damages a unit and an eliminated unit leaves the board', () => {
         life: 7,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       },
       {
         instanceId: 'target',
@@ -542,7 +588,9 @@ test('attacking damages a unit and an eliminated unit leaves the board', () => {
         life: 3,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       }
     ]
   };
@@ -566,7 +614,9 @@ test('a unit can move and attack in the same turn', () => {
         life: 7,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       },
       {
         instanceId: 'target',
@@ -576,7 +626,9 @@ test('a unit can move and attack in the same turn', () => {
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       }
     ]
   };
@@ -601,7 +653,9 @@ test('a unit cannot attack twice in the same turn', () => {
         life: 7,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       },
       {
         instanceId: 'target',
@@ -611,7 +665,9 @@ test('a unit cannot attack twice in the same turn', () => {
         life: 9,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
       }
     ]
   };
@@ -637,7 +693,9 @@ test('attacking a Nexus can end the match', () => {
       life: 7,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
-      attackedThisTurn: false
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
     }]
   };
 
@@ -646,4 +704,578 @@ test('attacking a Nexus can end the match', () => {
 
   assert.equal(state.nexuses[1].life, 0);
   assert.equal(state.winner, 0);
+});
+
+
+test('structures obey their placement rules and consume the card from hand', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    players: [
+      { ...state.players[0], mana: 10, hand: ['arcane_tower', ...state.players[0].hand.slice(1)] },
+      state.players[1]
+    ]
+  };
+
+  const legal = getLegalStructurePlacementCells(state, 0);
+  assert.ok(legal.length > 0);
+  const target = legal.find((position) => position.x === 3 && position.y === 10) ?? legal[0];
+
+  state = placeStructure(state, 0, target);
+  assert.equal(state.structures.length, 1);
+  assert.equal(state.structures[0].cardId, 'arcane_tower');
+  assert.equal(state.players[0].hand.includes('arcane_tower'), false);
+});
+
+test('mana crystal generates one bonus mana every three owner turns after construction', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    structures: [{
+      instanceId: 'crystal',
+      owner: 0,
+      cardId: 'mana_crystal',
+      position: { x: 1, y: 11 },
+      life: 6,
+      attackedThisTurn: false,
+      deployedOnPersonalTurn: 1
+    }]
+  };
+
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  const before = state.players[0].mana;
+  state = startActivePlayerTurn(state);
+
+  assert.equal(state.players[0].personalTurn, 3);
+  assert.equal(state.players[0].mana, before + 2);
+
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  const manaBeforeTrigger = state.players[0].mana;
+  state = startActivePlayerTurn(state);
+
+  assert.equal(state.players[0].personalTurn, 5);
+  assert.equal(state.players[0].mana, manaBeforeTrigger + 2);
+});
+
+test('mana crystal bonus triggers on its third owner turn after deployment', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    structures: [{
+      instanceId: 'crystal',
+      owner: 0,
+      cardId: 'mana_crystal',
+      position: { x: 1, y: 11 },
+      life: 6,
+      attackedThisTurn: false,
+      deployedOnPersonalTurn: 1
+    }]
+  };
+
+  for (let cycle = 0; cycle < 2; cycle += 1) {
+    state = endTurn(state);
+    state = startActivePlayerTurn(state);
+    state = endTurn(state);
+    state = startActivePlayerTurn(state);
+  }
+
+  assert.equal(state.players[0].personalTurn, 3);
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  const before = state.players[0].mana;
+  state = startActivePlayerTurn(state);
+
+  assert.equal(state.players[0].personalTurn, 4);
+  assert.equal(state.players[0].mana, before + 3);
+});
+
+test('nexus chapel heals the most wounded adjacent allied unit at end of turn', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    structures: [{
+      instanceId: 'chapel',
+      owner: 0,
+      cardId: 'nexus_chapel',
+      position: { x: 2, y: 10 },
+      life: 8,
+      attackedThisTurn: false,
+      deployedOnPersonalTurn: 1
+    }],
+    units: [{
+      instanceId: 'ally',
+      owner: 0,
+      cardId: 'paladin',
+      position: { x: 2, y: 9 },
+      life: 4,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
+    }]
+  };
+
+  state = endTurn(state);
+  assert.equal(state.units[0].life, 5);
+});
+
+test('arcane and watch towers can attack once per turn', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    structures: [{
+      instanceId: 'tower',
+      owner: 0,
+      cardId: 'watch_tower',
+      position: { x: 4, y: 8 },
+      life: 10,
+      attackedThisTurn: false,
+      deployedOnPersonalTurn: 1
+    }],
+    units: [{
+      instanceId: 'target',
+      owner: 1,
+      cardId: 'squire',
+      position: { x: 4, y: 5 },
+      life: 5,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
+    }]
+  };
+
+  assert.equal(getLegalStructureAttackTargets(state, 'tower').length, 1);
+  state = attackWithStructure(state, 'tower', { kind: 'unit', id: 'target' });
+  assert.equal(state.units[0].life, 2);
+  assert.deepEqual(getLegalStructureAttackTargets(state, 'tower'), []);
+});
+
+test('archmage discounts only the first spell each turn by one mana', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    players: [
+      { ...state.players[0], mana: 10, hand: ['fireball', 'ice_chains', ...state.players[0].hand.slice(2)] },
+      state.players[1]
+    ],
+    units: [
+      {
+        instanceId: 'archmage',
+        owner: 0,
+        cardId: 'archmage',
+        position: { x: 4, y: 10 },
+        life: 7,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      },
+      {
+        instanceId: 'enemy',
+        owner: 1,
+        cardId: 'squire',
+        position: { x: 4, y: 5 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      }
+    ]
+  };
+
+  assert.equal(effectiveCardCost(state, 'fireball'), 2);
+  state = castSpell(state, 0, { kind: 'damage', targetUnitId: 'enemy' });
+  assert.equal(state.players[0].mana, 8);
+  assert.equal(effectiveCardCost(state, 'ice_chains'), 2);
+});
+
+test('fireball deals four damage and is discarded', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    players: [
+      { ...state.players[0], mana: 10, hand: ['fireball', ...state.players[0].hand.slice(1)] },
+      state.players[1]
+    ],
+    units: [{
+      instanceId: 'enemy',
+      owner: 1,
+      cardId: 'shield_guardian',
+      position: { x: 4, y: 5 },
+      life: 9,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
+    }]
+  };
+
+  state = castSpell(state, 0, { kind: 'damage', targetUnitId: 'enemy' });
+  assert.equal(state.units[0].life, 5);
+  assert.equal(state.players[0].discardPile.at(-1), 'fireball');
+});
+
+test('ice chains applies minus two movement on the target next turn', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    players: [
+      { ...state.players[0], mana: 10, hand: ['ice_chains', ...state.players[0].hand.slice(1)] },
+      state.players[1]
+    ],
+    units: [{
+      instanceId: 'enemy',
+      owner: 1,
+      cardId: 'nexus_knight',
+      position: { x: 4, y: 5 },
+      life: 8,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
+    }]
+  };
+
+  state = castSpell(state, 0, { kind: 'slow', targetUnitId: 'enemy' });
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+
+  assert.equal(effectiveMovementForUnit(state, 'enemy'), 1);
+});
+
+test('translocation teleports up to three cells without consuming normal movement', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    players: [
+      { ...state.players[0], mana: 10, hand: ['translocation', ...state.players[0].hand.slice(1)] },
+      state.players[1]
+    ],
+    units: [{
+      instanceId: 'ally',
+      owner: 0,
+      cardId: 'arcane_apprentice',
+      position: { x: 4, y: 10 },
+      life: 4,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
+    }]
+  };
+
+  assert.ok(legalTeleportDestinations(state, 'ally').some((cell) => cell.x === 4 && cell.y === 7));
+  state = castSpell(state, 0, { kind: 'teleport', unitId: 'ally', destination: { x: 4, y: 7 } });
+
+  assert.deepEqual(state.units[0].position, { x: 4, y: 7 });
+  assert.equal(state.units[0].movedThisTurn, false);
+});
+
+test('rally gives plus one movement to up to three unmoved allied units', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    players: [
+      { ...state.players[0], mana: 10, hand: ['rally', ...state.players[0].hand.slice(1)] },
+      state.players[1]
+    ],
+    units: ['a', 'b', 'c'].map((id, index) => ({
+      instanceId: id,
+      owner: 0 as const,
+      cardId: 'squire',
+      position: { x: index + 1, y: 10 },
+      life: 5,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
+    }))
+  };
+
+  state = castSpell(state, 0, { kind: 'buff-move', unitIds: ['a', 'b', 'c'] });
+  assert.equal(effectiveMovementForUnit(state, 'a'), 3);
+  assert.equal(effectiveMovementForUnit(state, 'b'), 3);
+  assert.equal(effectiveMovementForUnit(state, 'c'), 3);
+});
+
+test('holy punishment deals four damage when target is adjacent to a friendly paladin', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    players: [
+      { ...state.players[0], mana: 10, hand: ['holy_punishment', ...state.players[0].hand.slice(1)] },
+      state.players[1]
+    ],
+    units: [
+      {
+        instanceId: 'paladin',
+        owner: 0,
+        cardId: 'paladin',
+        position: { x: 4, y: 6 },
+        life: 7,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      },
+      {
+        instanceId: 'enemy',
+        owner: 1,
+        cardId: 'shield_guardian',
+        position: { x: 4, y: 5 },
+        life: 9,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      }
+    ]
+  };
+
+  state = castSpell(state, 0, { kind: 'conditional-damage', targetUnitId: 'enemy' });
+  assert.equal(state.units.find((unit) => unit.instanceId === 'enemy')?.life, 5);
+});
+
+test('battle mage gains one range if it has not moved', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [
+      {
+        instanceId: 'mage',
+        owner: 0,
+        cardId: 'battle_mage',
+        position: { x: 4, y: 10 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      },
+      {
+        instanceId: 'enemy',
+        owner: 1,
+        cardId: 'squire',
+        position: { x: 4, y: 6 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      }
+    ]
+  };
+
+  assert.deepEqual(validateAttack(state, 'mage', { kind: 'unit', id: 'enemy' }), []);
+  state = { ...state, units: state.units.map((unit) => unit.instanceId === 'mage' ? { ...unit, movedThisTurn: true } : unit) };
+  assert.ok(validateAttack(state, 'mage', { kind: 'unit', id: 'enemy' }).length > 0);
+});
+
+test('frost weaver reduces the target movement next turn when it hits', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [
+      {
+        instanceId: 'weaver',
+        owner: 0,
+        cardId: 'frost_weaver',
+        position: { x: 4, y: 8 },
+        life: 4,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      },
+      {
+        instanceId: 'enemy',
+        owner: 1,
+        cardId: 'nexus_knight',
+        position: { x: 4, y: 5 },
+        life: 8,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      }
+    ]
+  };
+
+  state = attackTarget(state, 'weaver', { kind: 'unit', id: 'enemy' });
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+  assert.equal(effectiveMovementForUnit(state, 'enemy'), 2);
+});
+
+test('arcane elemental ignores the extra cost to climb a hill', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [{
+      instanceId: 'elemental',
+      owner: 0,
+      cardId: 'arcane_elemental',
+      position: { x: 1, y: 11 },
+      life: 8,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
+    }]
+  };
+
+  const reachable = getReachableMovement(state, 'elemental');
+  assert.ok(reachable.some((option) => option.position.x === 1 && option.position.y === 9));
+});
+
+test('shield guardian reduces ranged damage to adjacent allies by one', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [
+      {
+        instanceId: 'attacker',
+        owner: 0,
+        cardId: 'order_crossbow',
+        position: { x: 4, y: 9 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      },
+      {
+        instanceId: 'target',
+        owner: 1,
+        cardId: 'squire',
+        position: { x: 4, y: 6 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      },
+      {
+        instanceId: 'guard',
+        owner: 1,
+        cardId: 'shield_guardian',
+        position: { x: 5, y: 6 },
+        life: 9,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      }
+    ]
+  };
+
+  state = attackTarget(state, 'attacker', { kind: 'unit', id: 'target' });
+  assert.equal(state.units.find((unit) => unit.instanceId === 'target')?.life, 4);
+});
+
+test('nexus knight gains plus one attack after moving at least two cells', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [{
+      instanceId: 'knight',
+      owner: 0,
+      cardId: 'nexus_knight',
+      position: { x: 4, y: 9 },
+      life: 8,
+      movedThisTurn: true,
+      cellsMovedThisTurn: 2,
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
+    }]
+  };
+
+  assert.equal(attackPowerForUnit(state, 'knight'), 5);
+});
+
+test('bastion champion heals two life after eliminating an enemy unit', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [
+      {
+        instanceId: 'champion',
+        owner: 0,
+        cardId: 'bastion_champion',
+        position: { x: 4, y: 7 },
+        life: 8,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      },
+      {
+        instanceId: 'enemy',
+        owner: 1,
+        cardId: 'squire',
+        position: { x: 4, y: 6 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      }
+    ]
+  };
+
+  state = attackTarget(state, 'champion', { kind: 'unit', id: 'enemy' });
+  assert.equal(state.units.find((unit) => unit.instanceId === 'champion')?.life, 10);
 });
