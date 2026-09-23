@@ -46,7 +46,20 @@ A unit deployment:
 - requires an accessible, unoccupied cell
 - cannot overlap a Nexus, unit or structure
 
-Movement and attacks after deployment are handled by later tasks.
+A newly deployed unit may move during the same turn unless a future card ability says otherwise.
+
+### Movement
+
+- Movement is orthogonal only: up, down, left or right.
+- A unit can make one movement action per turn.
+- The unit may choose any reachable destination within its Movement allowance.
+- Water and Mountain cells cannot be entered by standard units.
+- Nexus, units and structures block both entry and pathing.
+- Units cannot move through occupied cells.
+- Hill climbing normally costs 2 Movement instead of 1.
+- If a unit has exactly 1 Movement remaining, it may still make a one-cell climb onto an adjacent Hill.
+- Descending from a Hill costs 0 Movement for that step, effectively granting one extra movement cell for that movement sequence.
+- The engine stores how many grid cells the unit moved this turn for abilities such as charge bonuses.
 
 ### Structures
 
@@ -181,4 +194,4 @@ Tasks 001–002 establish:
 - interactive prototype UI
 - automated baseline tests
 
-Movement, attacks, structures, spell resolution and AI will be layered on top rather than embedded into the foundation.
+Movement is now implemented. Attacks, structures, spell resolution and AI remain layered follow-up systems.
