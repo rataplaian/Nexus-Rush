@@ -524,11 +524,11 @@ function BattleBoard(props: {
                   { width: cellSize, height: cellSize },
                   deploymentLegal && styles.deployCell,
                   movementLegal && styles.moveCell,
-                  attackLegal && styles.attackCell,
                   nexus?.owner === 0 && styles.playerNexus,
                   nexus?.owner === 1 && styles.enemyNexus,
                   unit?.owner === 0 && styles.playerUnit,
                   unit?.owner === 1 && styles.enemyUnit,
+                  attackLegal && styles.attackCell,
                   selectedUnit && styles.selectedUnit
                 ]}
               >
