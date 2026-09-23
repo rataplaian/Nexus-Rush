@@ -295,24 +295,27 @@ function bestAttackForUnit(state: GameState, unitId: string): Candidate | null {
 
   let best: Candidate | null = null;
   for (const option of options) {
-    const next = attackTarget(state, unitId, option.target);
+    const target = option.target;
+    const next = attackTarget(state, unitId, target);
     let score = evaluateState(next);
 
-    if (option.target.kind === 'unit') {
-      const before = state.units.find((unit) => unit.instanceId === option.target.id);
-      const survives = next.units.some((unit) => unit.instanceId === option.target.id);
+    if (target.kind === 'unit') {
+      const targetId = target.id;
+      const before = state.units.find((unit) => unit.instanceId === targetId);
+      const survives = next.units.some((unit) => unit.instanceId === targetId);
       if (before && !survives) {
         const targetCard = CARDS[before.cardId];
         score += 18 + (targetCard.type === 'unit' ? unitCardValue(targetCard) * 0.65 : 0);
       }
     }
 
-    if (option.target.kind === 'structure') {
-      const destroyed = !next.structures.some((structure) => structure.instanceId === option.target.id);
+    if (target.kind === 'structure') {
+      const targetId = target.id;
+      const destroyed = !next.structures.some((structure) => structure.instanceId === targetId);
       if (destroyed) score += 14;
     }
 
-    if (option.target.kind === 'nexus') score += 18;
+    if (target.kind === 'nexus') score += 18;
     if (next.winner === AI_PLAYER) score += WIN_SCORE;
 
     const candidate: Candidate = {
@@ -331,18 +334,21 @@ function bestAttackForStructure(state: GameState, structureId: string): Candidat
   let best: Candidate | null = null;
 
   for (const option of options) {
-    const next = attackWithStructure(state, structureId, option.target);
+    const target = option.target;
+    const next = attackWithStructure(state, structureId, target);
     let score = evaluateState(next);
 
-    if (option.target.kind === 'unit') {
-      const removed = !next.units.some((unit) => unit.instanceId === option.target.id);
+    if (target.kind === 'unit') {
+      const targetId = target.id;
+      const removed = !next.units.some((unit) => unit.instanceId === targetId);
       if (removed) score += 16;
     }
-    if (option.target.kind === 'structure') {
-      const removed = !next.structures.some((structure) => structure.instanceId === option.target.id);
+    if (target.kind === 'structure') {
+      const targetId = target.id;
+      const removed = !next.structures.some((structure) => structure.instanceId === targetId);
       if (removed) score += 12;
     }
-    if (option.target.kind === 'nexus') score += 16;
+    if (target.kind === 'nexus') score += 16;
     if (next.winner === AI_PLAYER) score += WIN_SCORE;
 
     const candidate: Candidate = {
