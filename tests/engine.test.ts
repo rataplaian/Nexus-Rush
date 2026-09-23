@@ -41,6 +41,11 @@ import {
 } from '../src/game/actions';
 import { effectiveCardCost } from '../src/game/engine';
 import { effectiveMovementForUnit } from '../src/game/movement';
+import {
+  chooseAINexusPositions,
+  evaluateState,
+  runAITurn
+} from '../src/game/ai';
 
 function verticalGame() {
   return createGame(
@@ -1278,4 +1283,149 @@ test('bastion champion heals two life after eliminating an enemy unit', () => {
 
   state = attackTarget(state, 'champion', { kind: 'unit', id: 'enemy' });
   assert.equal(state.units.find((unit) => unit.instanceId === 'champion')?.life, 10);
+});
+
+
+test('AI chooses legal Nexus positions for both game modes', () => {
+  const vertical = chooseAINexusPositions(VERTICAL_PASS, 1);
+  const horizontal = chooseAINexusPositions(HORIZONTAL_VALLEY, 1);
+
+  assert.deepEqual(validateNexusPositions(VERTICAL_PASS, 1, vertical), []);
+  assert.deepEqual(validateNexusPositions(HORIZONTAL_VALLEY, 1, horizontal), []);
+  assert.equal(vertical.length, 1);
+  assert.equal(horizontal.length, 2);
+});
+
+test('AI takes a complete tactical turn instead of passing with playable mana', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+
+  assert.equal(state.activePlayer, 1);
+  assert.equal(state.players[1].mana, 2);
+
+  const result = runAITurn(state);
+
+  assert.ok(result.actions.length > 0);
+  assert.ok(
+    result.state.units.some((unit) => unit.owner === 1) ||
+    result.state.structures.some((structure) => structure.owner === 1) ||
+    result.state.players[1].mana < 2
+  );
+});
+
+test('AI prioritizes an immediate lethal attack on the enemy Nexus', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+
+  state = {
+    ...state,
+    nexuses: state.nexuses.map((nexus, index) =>
+      index === 0 ? { ...nexus, life: 3 } : nexus
+    ),
+    units: [{
+      instanceId: 'ai-finisher',
+      owner: 1,
+      cardId: 'archmage',
+      position: { x: 3, y: 7 },
+      life: 7,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false,
+      movementModifierThisTurn: 0,
+      pendingMovementModifier: 0
+    }],
+    players: [
+      state.players[0],
+      { ...state.players[1], mana: 0, hand: [] }
+    ]
+  };
+
+  const result = runAITurn(state);
+
+  assert.equal(result.state.winner, 1);
+  assert.equal(result.state.nexuses[0].life, 0);
+});
+
+test('AI focus fire prefers removing a killable enemy over chip damage', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+
+  state = {
+    ...state,
+    players: [
+      state.players[0],
+      { ...state.players[1], mana: 0, hand: [] }
+    ],
+    units: [
+      {
+        instanceId: 'ai-paladin',
+        owner: 1,
+        cardId: 'paladin',
+        position: { x: 4, y: 5 },
+        life: 7,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      },
+      {
+        instanceId: 'killable',
+        owner: 0,
+        cardId: 'squire',
+        position: { x: 4, y: 6 },
+        life: 2,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      },
+      {
+        instanceId: 'healthy',
+        owner: 0,
+        cardId: 'shield_guardian',
+        position: { x: 3, y: 5 },
+        life: 9,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
+      }
+    ]
+  };
+
+  const result = runAITurn(state);
+
+  assert.equal(result.state.units.some((unit) => unit.instanceId === 'killable'), false);
+  assert.equal(result.state.units.some((unit) => unit.instanceId === 'healthy'), true);
+});
+
+test('AI evaluation strongly prefers winning states', () => {
+  const base = verticalGame();
+  const won = { ...base, winner: 1 as const };
+  const lost = { ...base, winner: 0 as const };
+
+  assert.ok(evaluateState(won, 1) > evaluateState(base, 1) + 1000);
+  assert.ok(evaluateState(lost, 1) < evaluateState(base, 1) - 1000);
+});
+
+test('AI is deterministic for the same board state', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+
+  const a = runAITurn(state);
+  const b = runAITurn(state);
+
+  assert.deepEqual(a.actions, b.actions);
+  assert.deepEqual(a.state, b.state);
 });
