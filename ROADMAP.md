@@ -41,11 +41,15 @@
 - one-shot spell targeting
 - starter deck abilities
 
-## Task 006 — Single-player opponent
-- deterministic AI baseline
-- tactical evaluation
-- Nexus placement strategy
-- difficulty profiles
+## Task 006 — Single-player opponent ✅
+- deterministic challenging AI
+- tactical board evaluation
+- intelligent Nexus placement
+- focus fire / lethal priority
+- terrain, risk and objective scoring
+- spell / structure / deployment planning
+- move-before-attack vs attack-before-move evaluation
+- architecture ready for future difficulty profiles
 
 ## Task 007 — UX and presentation
 - card hand layout

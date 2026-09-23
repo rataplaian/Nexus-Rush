@@ -231,3 +231,32 @@ Movement, combat, structures, starter spells and starter-card abilities are now 
 - Campione del Bastione: heals 2 Life after eliminating an enemy unit.
 
 These effects are data-linked to the current starter cards. Future cards should extend the same effect framework rather than add UI-only exceptions.
+
+
+## 11. Single-player AI
+
+The default opponent is a deterministic tactical AI designed to be challenging rather than random.
+
+It evaluates:
+- immediate Nexus kills and lethal attacks first
+- unit removal and focus fire
+- material advantage and remaining Life
+- enemy pressure near its own Nexus
+- distance and approach lanes toward the enemy Nexus
+- Hill control and positional value
+- exposure to enemy threat ranges
+- Mana value and whether an action is worth spending resources on
+- unit, structure and spell synergies already implemented in the starter decks
+
+The AI:
+- chooses its own legal Nexus placement based on defensive terrain and spacing
+- deploys units and structures by scoring all legal cells
+- uses spells only when the resulting board state improves enough to justify the Mana
+- evaluates attack-before-move versus move-before-attack
+- considers attacks available after each candidate movement
+- repositions after attacking when doing so improves survival or objective pressure
+- uses structure attacks
+- keeps unused Mana when no available card action improves its evaluated position
+- uses deterministic tie-breaking so identical game states produce identical decisions
+
+This is intentionally a tactical heuristic planner rather than a scripted opponent. The evaluation system is isolated in `src/game/ai.ts` so deeper search and future difficulty profiles can be added without changing core game rules.
