@@ -1,6 +1,6 @@
 # Nexus Rush — Prototype Roadmap
 
-## Task 001 — Foundation
+## Task 001 — Foundation ✅
 - project bootstrap
 - rules/types
 - two starter decks
@@ -11,12 +11,14 @@
 - tests
 
 ## Task 002 — Turn loop + hand
-- opening hand
-- draw/cycle rule
+- 5-card opening hand
+- refill hand to 5 at the start of each personal turn
+- finite 20-card draw pile
 - Mana spending
 - unit deployment in first 2 rows
 - end-turn flow
 - board occupancy
+- interactive deployment sandbox
 
 ## Task 003 — Movement
 - orthogonal pathfinding

@@ -91,6 +91,9 @@ export interface PlayerState {
   mana: number;
   personalTurn: number;
   deckId: string;
+  drawPile: string[];
+  hand: string[];
+  discardPile: string[];
 }
 
 export interface GameState {
@@ -98,9 +101,11 @@ export interface GameState {
   mapId: string;
   activePlayer: PlayerId;
   round: number;
+  turnStarted: boolean;
   players: [PlayerState, PlayerState];
   nexuses: NexusState[];
   units: UnitState[];
   structures: StructureState[];
+  nextInstanceId: number;
   winner: PlayerId | null;
 }

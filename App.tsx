@@ -8,19 +8,29 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
-import { STARTER_DECKS, CARDS } from './src/game/cards';
+import { CARDS, STARTER_DECKS } from './src/game/cards';
+import {
+  createGame,
+  deployUnit,
+  endTurn,
+  getLegalUnitDeploymentCells,
+  startActivePlayerTurn
+} from './src/game/engine';
 import { MAPS } from './src/game/maps';
 import {
-  attackModifierForTerrain,
-  blocksLineOfSight,
-  blocksMovement,
   isLegalNexusCell,
   modeLabel,
   validateNexusPositions
 } from './src/game/rules';
-import { GameMode, MapDefinition, Position, TerrainType } from './src/game/types';
+import {
+  GameMode,
+  GameState,
+  MapDefinition,
+  Position,
+  TerrainType
+} from './src/game/types';
 
-type Screen = 'home' | 'setup';
+type Screen = 'home' | 'setup' | 'game';
 
 const terrainLabels: Record<TerrainType, string> = {
   plain: 'P',
@@ -52,7 +62,8 @@ export default function App() {
   const [mode, setMode] = useState<GameMode>('horizontal-dual-nexus');
   const [deckId, setDeckId] = useState(STARTER_DECKS[0].id);
   const [nexuses, setNexuses] = useState<Position[]>([]);
-  const [setupComplete, setSetupComplete] = useState(false);
+  const [game, setGame] = useState<GameState | null>(null);
+  const [selectedHandIndex, setSelectedHandIndex] = useState<number | null>(null);
 
   const map = useMemo(
     () => MAPS.find((candidate) => candidate.mode === mode) ?? MAPS[0],
@@ -62,17 +73,16 @@ export default function App() {
   const requiredNexuses = mode === 'horizontal-dual-nexus' ? 2 : 1;
   const nexusErrors = validateNexusPositions(map, 0, nexuses);
   const canConfirm = nexuses.length === requiredNexuses && nexusErrors.length === 0;
-  const enemyNexuses = setupComplete ? mirroredOpponentPositions(map, nexuses) : [];
 
   function beginSetup(selectedMode: GameMode) {
     setMode(selectedMode);
     setNexuses([]);
-    setSetupComplete(false);
+    setGame(null);
+    setSelectedHandIndex(null);
     setScreen('setup');
   }
 
   function toggleNexus(position: Position) {
-    if (setupComplete) return;
     if (!isLegalNexusCell(map, 0, position)) return;
 
     const existing = nexuses.findIndex((item) => samePosition(item, position));
@@ -85,6 +95,24 @@ export default function App() {
     setNexuses([...nexuses, position]);
   }
 
+  function startMatch() {
+    if (!canConfirm) return;
+    const enemyDeckId = deckId === 'arcane' ? 'bastion' : 'arcane';
+    const enemyNexuses = mirroredOpponentPositions(map, nexuses);
+
+    const created = createGame(mode, nexuses, enemyNexuses, deckId, enemyDeckId);
+    setGame(startActivePlayerTurn(created));
+    setSelectedHandIndex(null);
+    setScreen('game');
+  }
+
+  function returnHome() {
+    setScreen('home');
+    setGame(null);
+    setSelectedHandIndex(null);
+    setNexuses([]);
+  }
+
   if (screen === 'home') {
     return (
       <SafeAreaView style={styles.safe}>
@@ -93,19 +121,18 @@ export default function App() {
           <Text style={styles.eyebrow}>TACTICAL CARD BATTLE</Text>
           <Text style={styles.title}>NEXUS RUSH</Text>
           <Text style={styles.subtitle}>
-            Scegli la formazione della plancia. Le due modalità condividono carte e regole,
-            ma richiedono approcci tattici diversi.
+            Carte tattiche, movimento su griglia e terreni che cambiano il modo di raggiungere il Nexus.
           </Text>
 
           <Text style={styles.sectionTitle}>Modalità</Text>
           <ModeCard
             title="Fronte Orizzontale"
-            detail="2 Nexus per giocatore · ne basta 1 distrutto per vincere"
+            detail="2 Nexus per giocatore · distruggine 1 per vincere"
             onPress={() => beginSetup('horizontal-dual-nexus')}
           />
           <ModeCard
             title="Assalto Verticale"
-            detail="1 Nexus per giocatore · corridoi più stretti e fronte più diretto"
+            detail="1 Nexus per giocatore · fronte più stretto e diretto"
             onPress={() => beginSetup('vertical-single-nexus')}
           />
 
@@ -126,92 +153,179 @@ export default function App() {
           <View style={styles.ruleStrip}>
             <Text style={styles.ruleStripText}>20 carte</Text>
             <Text style={styles.ruleStripText}>max 2 copie</Text>
+            <Text style={styles.ruleStripText}>mano 5</Text>
             <Text style={styles.ruleStripText}>Nexus 10 HP</Text>
-            <Text style={styles.ruleStripText}>+2 Mana/turno</Text>
           </View>
         </ScrollView>
       </SafeAreaView>
     );
   }
 
+  if (screen === 'setup') {
+    return (
+      <SafeAreaView style={styles.safe}>
+        <StatusBar barStyle="light-content" />
+        <ScrollView contentContainerStyle={styles.setup}>
+          <View style={styles.topBar}>
+            <TouchableOpacity onPress={() => setScreen('home')} style={styles.backButton}>
+              <Text style={styles.backButtonText}>‹ Menu</Text>
+            </TouchableOpacity>
+            <View>
+              <Text style={styles.modeTitle}>{modeLabel(mode)}</Text>
+              <Text style={styles.modeSubtitle}>{map.name}</Text>
+            </View>
+          </View>
+
+          <Text style={styles.instructions}>
+            Posiziona {requiredNexuses} {requiredNexuses === 1 ? 'Nexus' : 'Nexus'} nelle tue prime 2 righe.
+            Il lato avversario viene specchiato nel sandbox del prototipo.
+          </Text>
+
+          <SetupBoard map={map} playerNexuses={nexuses} onCellPress={toggleNexus} />
+
+          {nexusErrors.length > 0 && nexuses.length === requiredNexuses ? (
+            <View style={styles.errorBox}>
+              {nexusErrors.map((error) => <Text key={error} style={styles.errorText}>• {error}</Text>)}
+            </View>
+          ) : null}
+
+          <TouchableOpacity
+            disabled={!canConfirm}
+            onPress={startMatch}
+            style={[styles.primaryButton, !canConfirm && styles.primaryButtonDisabled]}
+          >
+            <Text style={styles.primaryButtonText}>INIZIA PARTITA</Text>
+          </TouchableOpacity>
+
+          <TerrainLegend />
+        </ScrollView>
+      </SafeAreaView>
+    );
+  }
+
+  if (!game) return null;
+
+  return (
+    <GameScreen
+      game={game}
+      setGame={setGame}
+      selectedHandIndex={selectedHandIndex}
+      setSelectedHandIndex={setSelectedHandIndex}
+      onExit={returnHome}
+    />
+  );
+}
+
+function GameScreen(props: {
+  game: GameState;
+  setGame: (game: GameState) => void;
+  selectedHandIndex: number | null;
+  setSelectedHandIndex: (index: number | null) => void;
+  onExit: () => void;
+}) {
+  const map = MAPS.find((candidate) => candidate.id === props.game.mapId) ?? MAPS[0];
+  const player = props.game.players[props.game.activePlayer];
+  const deck = STARTER_DECKS.find((candidate) => candidate.id === player.deckId);
+  const legalCells = props.selectedHandIndex === null
+    ? []
+    : getLegalUnitDeploymentCells(props.game, props.selectedHandIndex);
+
+  function isLegalDeployment(position: Position) {
+    return legalCells.some((cell) => samePosition(cell, position));
+  }
+
+  function handleCellPress(position: Position) {
+    if (props.selectedHandIndex === null || !isLegalDeployment(position)) return;
+
+    const updated = deployUnit(props.game, props.selectedHandIndex, position);
+    props.setGame(updated);
+    props.setSelectedHandIndex(null);
+  }
+
+  function handleEndTurn() {
+    const switched = endTurn(props.game);
+    props.setGame(startActivePlayerTurn(switched));
+    props.setSelectedHandIndex(null);
+  }
+
   return (
     <SafeAreaView style={styles.safe}>
       <StatusBar barStyle="light-content" />
-      <ScrollView contentContainerStyle={styles.setup}>
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => setScreen('home')} style={styles.backButton}>
-            <Text style={styles.backButtonText}>‹ Menu</Text>
+      <ScrollView contentContainerStyle={styles.gameScreen}>
+        <View style={styles.gameHeader}>
+          <TouchableOpacity onPress={props.onExit} style={styles.backButton}>
+            <Text style={styles.backButtonText}>‹ Esci</Text>
           </TouchableOpacity>
-          <View>
-            <Text style={styles.modeTitle}>{modeLabel(mode)}</Text>
-            <Text style={styles.modeSubtitle}>{map.name}</Text>
+          <View style={styles.gameHeaderCopy}>
+            <Text style={styles.modeTitle}>{modeLabel(props.game.mode)}</Text>
+            <Text style={styles.modeSubtitle}>Round {props.game.round} · Giocatore {props.game.activePlayer + 1}</Text>
           </View>
+          <TouchableOpacity onPress={handleEndTurn} style={styles.endTurnButton}>
+            <Text style={styles.endTurnText}>FINE TURNO</Text>
+          </TouchableOpacity>
         </View>
 
-        <Text style={styles.instructions}>
-          {setupComplete
-            ? 'Setup completato. I Nexus avversari sono mostrati in posizione speculare per il sandbox iniziale.'
-            : 'Posiziona ' + requiredNexuses + (requiredNexuses === 1 ? ' Nexus' : ' Nexus') + ' nelle tue prime 2 righe.'}
+        <View style={styles.statusRow}>
+          <StatusPill label="MANA" value={String(player.mana)} />
+          <StatusPill label="TURNO" value={String(player.personalTurn)} />
+          <StatusPill label="MANO" value={String(player.hand.length)} />
+          <StatusPill label="MAZZO" value={String(player.drawPile.length)} />
+        </View>
+
+        <Text style={styles.sandboxNote}>
+          Sandbox manuale: il Giocatore 2 è controllato manualmente finché non viene implementata l'AI.
         </Text>
 
-        <GameBoard
+        <BattleBoard
           map={map}
-          playerNexuses={nexuses}
-          enemyNexuses={enemyNexuses}
-          onCellPress={toggleNexus}
+          game={props.game}
+          legalCells={legalCells}
+          onCellPress={handleCellPress}
         />
 
-        {!setupComplete && nexusErrors.length > 0 && nexuses.length === requiredNexuses ? (
-          <View style={styles.errorBox}>
-            {nexusErrors.map((error) => <Text key={error} style={styles.errorText}>• {error}</Text>)}
-          </View>
-        ) : null}
+        <Text style={styles.handTitle}>
+          {deck?.name ?? player.deckId} · Mano
+        </Text>
 
-        {!setupComplete ? (
-          <TouchableOpacity
-            disabled={!canConfirm}
-            onPress={() => setSetupComplete(true)}
-            style={[styles.primaryButton, !canConfirm && styles.primaryButtonDisabled]}
-          >
-            <Text style={styles.primaryButtonText}>CONFERMA NEXUS</Text>
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.prototypePanel}>
-            <Text style={styles.prototypeTitle}>Foundation pronta</Text>
-            <Text style={styles.prototypeText}>
-              Il prossimo step collegherà mano, mana, schieramento unità, movimento, attacco,
-              strutture e magie a questa plancia.
-            </Text>
-          </View>
-        )}
-
-        <TerrainLegend />
-
-        <Text style={styles.sectionTitle}>Mazzo: {deck.name}</Text>
-        <View style={styles.cardGrid}>
-          {Array.from(new Set(deck.cardIds)).map((cardId) => {
+        <View style={styles.handRow}>
+          {player.hand.map((cardId, index) => {
             const card = CARDS[cardId];
+            const selected = props.selectedHandIndex === index;
+            const affordable = player.mana >= card.cost;
+            const deployable = card.type === 'unit' && affordable;
+
             return (
-              <View key={cardId} style={styles.card}>
-                <View style={styles.cardHeader}>
-                  <Text style={styles.cardName}>{card.name}</Text>
+              <TouchableOpacity
+                key={cardId + '-' + index}
+                disabled={!deployable}
+                onPress={() => props.setSelectedHandIndex(selected ? null : index)}
+                style={[
+                  styles.handCard,
+                  selected && styles.handCardSelected,
+                  !deployable && styles.handCardDisabled
+                ]}
+              >
+                <View style={styles.handCardTop}>
+                  <Text numberOfLines={2} style={styles.handCardName}>{card.name}</Text>
                   <Text style={styles.cardCost}>{card.cost}</Text>
                 </View>
                 <Text style={styles.cardType}>{card.type.toUpperCase()}</Text>
                 {card.type === 'unit' ? (
-                  <Text style={styles.cardStats}>
-                    ♥ {card.life}   MOV {card.movement}   RNG {card.range}   ATK {card.attack}
+                  <Text style={styles.handStats}>
+                    ♥{card.life} · M{card.movement} · R{card.range} · A{card.attack}
                   </Text>
-                ) : card.type === 'structure' ? (
-                  <Text style={styles.cardStats}>♥ {card.life}   RNG {card.range}   ATK {card.attack}</Text>
                 ) : (
-                  <Text style={styles.cardStats}>MAGIA USA E GETTA</Text>
+                  <Text style={styles.handStats}>Disponibile in Task 005</Text>
                 )}
-                {card.text ? <Text style={styles.cardText}>{card.text}</Text> : null}
-              </View>
+              </TouchableOpacity>
             );
           })}
         </View>
+
+        <Text style={styles.gameHint}>
+          Seleziona un'unità dalla mano: le caselle valide delle prime 2 righe si evidenziano.
+          Il costo viene sottratto dal Mana solo quando confermi lo schieramento sulla plancia.
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
@@ -227,10 +341,18 @@ function ModeCard(props: { title: string; detail: string; onPress: () => void })
   );
 }
 
-function GameBoard(props: {
+function StatusPill(props: { label: string; value: string }) {
+  return (
+    <View style={styles.statusPill}>
+      <Text style={styles.statusLabel}>{props.label}</Text>
+      <Text style={styles.statusValue}>{props.value}</Text>
+    </View>
+  );
+}
+
+function SetupBoard(props: {
   map: MapDefinition;
   playerNexuses: Position[];
-  enemyNexuses: Position[];
   onCellPress: (position: Position) => void;
 }) {
   const cellSize = props.map.width > props.map.height ? 27 : 34;
@@ -242,7 +364,6 @@ function GameBoard(props: {
           {row.map((terrain, x) => {
             const position = { x, y };
             const playerNexus = props.playerNexuses.some((item) => samePosition(item, position));
-            const enemyNexus = props.enemyNexuses.some((item) => samePosition(item, position));
             const legal = isLegalNexusCell(props.map, 0, position);
 
             return (
@@ -255,13 +376,61 @@ function GameBoard(props: {
                   terrainStyle(terrain),
                   { width: cellSize, height: cellSize },
                   legal && styles.legalCell,
-                  playerNexus && styles.playerNexus,
-                  enemyNexus && styles.enemyNexus
+                  playerNexus && styles.playerNexus
                 ]}
               >
                 <Text style={styles.cellText}>
-                  {playerNexus ? 'N' : enemyNexus ? 'X' : terrainLabels[terrain]}
+                  {playerNexus ? 'N' : terrainLabels[terrain]}
                 </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ))}
+    </View>
+  );
+}
+
+function BattleBoard(props: {
+  map: MapDefinition;
+  game: GameState;
+  legalCells: Position[];
+  onCellPress: (position: Position) => void;
+}) {
+  const cellSize = props.map.width > props.map.height ? 27 : 34;
+
+  return (
+    <View style={styles.boardFrame}>
+      {props.map.terrain.map((row, y) => (
+        <View key={y} style={styles.boardRow}>
+          {row.map((terrain, x) => {
+            const position = { x, y };
+            const nexus = props.game.nexuses.find((item) => samePosition(item.position, position));
+            const unit = props.game.units.find((item) => samePosition(item.position, position));
+            const legal = props.legalCells.some((item) => samePosition(item, position));
+            const unitCard = unit ? CARDS[unit.cardId] : null;
+
+            let label = terrainLabels[terrain];
+            if (nexus) label = nexus.owner === 0 ? 'N' : 'X';
+            if (unit && unitCard) label = unitCard.name.slice(0, 1).toUpperCase();
+
+            return (
+              <TouchableOpacity
+                key={x}
+                activeOpacity={0.8}
+                onPress={() => props.onCellPress(position)}
+                style={[
+                  styles.cell,
+                  terrainStyle(terrain),
+                  { width: cellSize, height: cellSize },
+                  legal && styles.deployCell,
+                  nexus?.owner === 0 && styles.playerNexus,
+                  nexus?.owner === 1 && styles.enemyNexus,
+                  unit?.owner === 0 && styles.playerUnit,
+                  unit?.owner === 1 && styles.enemyUnit
+                ]}
+              >
+                <Text style={styles.cellText}>{label}</Text>
               </TouchableOpacity>
             );
           })}
@@ -310,6 +479,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#0d1320' },
   home: { padding: 22, paddingBottom: 48, alignItems: 'stretch' },
   setup: { padding: 18, paddingBottom: 48, alignItems: 'center' },
+  gameScreen: { padding: 14, paddingBottom: 44, alignItems: 'center' },
   eyebrow: { color: '#63d8ff', fontSize: 12, fontWeight: '800', letterSpacing: 2, marginTop: 18 },
   title: { color: '#f6f8ff', fontSize: 46, fontWeight: '900', letterSpacing: 2, marginTop: 4 },
   subtitle: { color: '#aebad0', fontSize: 16, lineHeight: 23, maxWidth: 720, marginTop: 8, marginBottom: 26 },
@@ -340,28 +510,40 @@ const styles = StyleSheet.create({
   mountain: { backgroundColor: '#555967' },
   hill: { backgroundColor: '#8b7445' },
   legalCell: { borderColor: '#5fe2ff', borderWidth: 1.5 },
+  deployCell: { borderColor: '#d9ff6a', borderWidth: 2 },
   playerNexus: { backgroundColor: '#1687b2', borderColor: '#a7efff', borderWidth: 2 },
   enemyNexus: { backgroundColor: '#9c3b4c', borderColor: '#ffd1d8', borderWidth: 2 },
+  playerUnit: { backgroundColor: '#2c8fae', borderColor: '#b5f2ff', borderWidth: 2 },
+  enemyUnit: { backgroundColor: '#a34b5b', borderColor: '#ffd7dd', borderWidth: 2 },
   primaryButton: { backgroundColor: '#46c7ef', paddingHorizontal: 24, paddingVertical: 13, borderRadius: 12, marginTop: 16 },
   primaryButtonDisabled: { opacity: 0.3 },
   primaryButtonText: { color: '#07121b', fontWeight: '900', letterSpacing: 0.7 },
   errorBox: { maxWidth: 600, backgroundColor: '#361c28', borderRadius: 10, padding: 12, marginTop: 12 },
   errorText: { color: '#ffb7c1', fontSize: 13 },
-  prototypePanel: { maxWidth: 650, backgroundColor: '#16273b', borderColor: '#2f5b75', borderWidth: 1, borderRadius: 13, padding: 15, marginTop: 16 },
-  prototypeTitle: { color: '#7de5ff', fontWeight: '900', fontSize: 16 },
-  prototypeText: { color: '#b7c4da', lineHeight: 20, marginTop: 5 },
   legend: { width: '100%', maxWidth: 760, marginTop: 20, gap: 7 },
   legendItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#121b2b', borderRadius: 10, padding: 8 },
   legendIcon: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 6 },
   legendCopy: { marginLeft: 10, flex: 1 },
   legendName: { color: '#fff', fontWeight: '800' },
   legendText: { color: '#91a2be', fontSize: 12, marginTop: 2 },
-  cardGrid: { width: '100%', maxWidth: 800, gap: 8 },
-  card: { backgroundColor: '#151f31', borderRadius: 11, padding: 11, borderWidth: 1, borderColor: '#273852' },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  cardName: { color: '#fff', fontSize: 15, fontWeight: '900', flex: 1 },
-  cardCost: { color: '#08131d', backgroundColor: '#62d7ff', minWidth: 28, height: 28, textAlign: 'center', textAlignVertical: 'center', borderRadius: 14, overflow: 'hidden', fontWeight: '900' },
-  cardType: { color: '#7387a7', fontSize: 10, fontWeight: '900', letterSpacing: 1, marginTop: 5 },
-  cardStats: { color: '#d8e4f4', fontSize: 12, marginTop: 5, fontWeight: '700' },
-  cardText: { color: '#9fb0c8', fontSize: 12, marginTop: 5, lineHeight: 17 }
+  gameHeader: { width: '100%', maxWidth: 820, flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  gameHeaderCopy: { flex: 1, marginLeft: 10 },
+  endTurnButton: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: '#f0b84d', borderRadius: 10 },
+  endTurnText: { color: '#181108', fontWeight: '900', fontSize: 12 },
+  statusRow: { width: '100%', maxWidth: 820, flexDirection: 'row', gap: 7, marginBottom: 8 },
+  statusPill: { flex: 1, backgroundColor: '#152238', borderRadius: 9, paddingVertical: 7, alignItems: 'center' },
+  statusLabel: { color: '#7286a6', fontSize: 9, fontWeight: '900', letterSpacing: 0.7 },
+  statusValue: { color: '#fff', fontSize: 18, fontWeight: '900', marginTop: 1 },
+  sandboxNote: { color: '#8395b1', fontSize: 11, textAlign: 'center', maxWidth: 700, marginBottom: 9 },
+  handTitle: { width: '100%', maxWidth: 820, color: '#fff', fontSize: 16, fontWeight: '900', marginTop: 12, marginBottom: 7 },
+  handRow: { width: '100%', maxWidth: 820, flexDirection: 'row', gap: 6 },
+  handCard: { flex: 1, minWidth: 0, backgroundColor: '#17243a', borderWidth: 1, borderColor: '#2c405f', borderRadius: 9, padding: 7, minHeight: 100 },
+  handCardSelected: { borderColor: '#d9ff6a', borderWidth: 2, backgroundColor: '#243344' },
+  handCardDisabled: { opacity: 0.42 },
+  handCardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
+  handCardName: { color: '#fff', fontSize: 11, fontWeight: '900', flex: 1, lineHeight: 14 },
+  cardCost: { color: '#08131d', backgroundColor: '#62d7ff', minWidth: 23, height: 23, textAlign: 'center', textAlignVertical: 'center', borderRadius: 12, overflow: 'hidden', fontWeight: '900', fontSize: 11 },
+  cardType: { color: '#7387a7', fontSize: 8, fontWeight: '900', letterSpacing: 0.6, marginTop: 5 },
+  handStats: { color: '#d6e2f2', fontSize: 9, fontWeight: '700', marginTop: 8, lineHeight: 13 },
+  gameHint: { color: '#8fa1bd', maxWidth: 760, textAlign: 'center', fontSize: 11, lineHeight: 16, marginTop: 11 }
 });
