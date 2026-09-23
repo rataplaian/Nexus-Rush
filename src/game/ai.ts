@@ -298,6 +298,20 @@ function bestAttackForUnit(state: GameState, unitId: string): Candidate | null {
     const next = attackTarget(state, unitId, option.target);
     let score = evaluateState(next);
 
+    if (option.target.kind === 'unit') {
+      const before = state.units.find((unit) => unit.instanceId === option.target.id);
+      const survives = next.units.some((unit) => unit.instanceId === option.target.id);
+      if (before && !survives) {
+        const targetCard = CARDS[before.cardId];
+        score += 18 + (targetCard.type === 'unit' ? unitCardValue(targetCard) * 0.65 : 0);
+      }
+    }
+
+    if (option.target.kind === 'structure') {
+      const destroyed = !next.structures.some((structure) => structure.instanceId === option.target.id);
+      if (destroyed) score += 14;
+    }
+
     if (option.target.kind === 'nexus') score += 18;
     if (next.winner === AI_PLAYER) score += WIN_SCORE;
 
@@ -319,6 +333,15 @@ function bestAttackForStructure(state: GameState, structureId: string): Candidat
   for (const option of options) {
     const next = attackWithStructure(state, structureId, option.target);
     let score = evaluateState(next);
+
+    if (option.target.kind === 'unit') {
+      const removed = !next.units.some((unit) => unit.instanceId === option.target.id);
+      if (removed) score += 16;
+    }
+    if (option.target.kind === 'structure') {
+      const removed = !next.structures.some((structure) => structure.instanceId === option.target.id);
+      if (removed) score += 12;
+    }
     if (option.target.kind === 'nexus') score += 16;
     if (next.winner === AI_PLAYER) score += WIN_SCORE;
 
@@ -411,6 +434,8 @@ function deploymentCandidates(state: GameState): Candidate[] {
         let score = evaluateState(next) + piecePositionalValue(next, created.instanceId, AI_PLAYER);
         const dist = nearestNexusDistance(next, position, HUMAN_PLAYER);
         score -= dist * (card.range <= 1 ? 0.35 : 0.15);
+        score += 2.5;
+        if (state.units.filter((unit) => unit.owner === AI_PLAYER).length === 0) score += 4;
 
         candidates.push({
           score,
@@ -568,8 +593,12 @@ function bestCardAction(state: GameState): Candidate | null {
   const best = candidates[0];
   if (!best) return null;
 
-  // Save mana when the action does not improve the tactical position enough.
-  return best.score > baseline + 0.35 ? best : null;
+  // Save mana when an action is genuinely wasteful, but do not become passive in the opening.
+  const hasBoardPresence =
+    state.units.some((unit) => unit.owner === AI_PLAYER) ||
+    state.structures.some((structure) => structure.owner === AI_PLAYER);
+  const threshold = hasBoardPresence ? baseline + 0.2 : baseline - 0.5;
+  return best.score > threshold ? best : null;
 }
 
 function executeCardPhase(state: GameState, actions: string[]): GameState {
