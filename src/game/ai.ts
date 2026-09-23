@@ -599,12 +599,18 @@ function bestCardAction(state: GameState): Candidate | null {
   const best = candidates[0];
   if (!best) return null;
 
-  // Save mana when an action is genuinely wasteful, but do not become passive in the opening.
   const hasBoardPresence =
     state.units.some((unit) => unit.owner === AI_PLAYER) ||
     state.structures.some((structure) => structure.owner === AI_PLAYER);
-  const threshold = hasBoardPresence ? baseline + 0.2 : baseline - 0.5;
-  return best.score > threshold ? best : null;
+
+  // Opening principle: if the AI has no board at all and can deploy a unit, establish presence.
+  if (!hasBoardPresence) {
+    const openingUnit = candidates.find((candidate) => candidate.label.startsWith('schiera '));
+    if (openingUnit) return openingUnit;
+  }
+
+  // Otherwise bank Mana when an available action does not improve the position enough.
+  return best.score > baseline + 0.2 ? best : null;
 }
 
 function executeCardPhase(state: GameState, actions: string[]): GameState {
