@@ -1,0 +1,54 @@
+name: Publish Playable Web Preview
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  publish-preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm install
+
+      - name: Configure preview base URL
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const app = JSON.parse(fs.readFileSync('app.json', 'utf8'));
+          app.expo.experiments = {
+            ...(app.expo.experiments || {}),
+            baseUrl: '/rataplaian/Nexus-Rush/web-preview'
+          };
+          app.expo.web = {
+            ...(app.expo.web || {}),
+            output: 'single'
+          };
+          fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
+          NODE
+
+      - name: Export Expo web build
+        run: npx expo export --platform web --output-dir dist
+
+      - name: Publish web-preview branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cd dist
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Publish playable Nexus Rush web preview"
+          git branch -M web-preview
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          git push --force origin web-preview
