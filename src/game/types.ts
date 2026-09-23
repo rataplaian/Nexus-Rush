@@ -78,6 +78,8 @@ export interface UnitState {
   movedThisTurn: boolean;
   cellsMovedThisTurn: number;
   attackedThisTurn: boolean;
+  movementModifierThisTurn: number;
+  pendingMovementModifier: number;
 }
 
 export interface StructureState {
@@ -86,6 +88,8 @@ export interface StructureState {
   cardId: string;
   position: Position;
   life: number;
+  attackedThisTurn: boolean;
+  deployedOnPersonalTurn: number;
 }
 
 export interface PlayerState {
@@ -95,6 +99,7 @@ export interface PlayerState {
   drawPile: string[];
   hand: string[];
   discardPile: string[];
+  spellDiscountUsedThisTurn: boolean;
 }
 
 export interface GameState {

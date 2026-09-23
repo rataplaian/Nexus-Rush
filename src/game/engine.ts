@@ -5,6 +5,7 @@ import {
   deploymentRowsForPlayer,
   HAND_SIZE,
   manaIncomeForPersonalTurn,
+  manhattanDistance,
   NEXUS_MAX_LIFE,
   validateNexusPositions
 } from './rules';
@@ -55,7 +56,8 @@ function createPlayerState(deckId: string): PlayerState {
     deckId,
     hand: orderedDeck.slice(0, HAND_SIZE),
     drawPile: orderedDeck.slice(HAND_SIZE),
-    discardPile: []
+    discardPile: [],
+    spellDiscountUsedThisTurn: false
   };
 }
 
@@ -70,6 +72,55 @@ function refillHand(player: PlayerState): PlayerState {
     hand: [...player.hand, ...player.drawPile.slice(0, drawCount)],
     drawPile: player.drawPile.slice(drawCount)
   };
+}
+
+function hasFriendlyArchmage(state: GameState, player: PlayerId): boolean {
+  return state.units.some((unit) => unit.owner === player && unit.cardId === 'archmage');
+}
+
+function manaCrystalIncome(state: GameState, player: PlayerId, personalTurn: number): number {
+  return state.structures.filter((structure) => {
+    if (structure.owner !== player || structure.cardId !== 'mana_crystal') return false;
+    const age = personalTurn - structure.deployedOnPersonalTurn;
+    return age > 0 && age % 3 === 0;
+  }).length;
+}
+
+function applyChapelHealing(state: GameState, player: PlayerId): GameState {
+  let units = state.units.map((unit) => ({ ...unit }));
+
+  const chapels = state.structures.filter(
+    (structure) => structure.owner === player && structure.cardId === 'nexus_chapel'
+  );
+
+  for (const chapel of chapels) {
+    const candidates = units
+      .filter((unit) => {
+        if (unit.owner !== player) return false;
+        if (manhattanDistance(unit.position, chapel.position) !== 1) return false;
+        const card = CARDS[unit.cardId];
+        return card?.type === 'unit' && unit.life < card.life;
+      })
+      .sort((a, b) => {
+        const aCard = CARDS[a.cardId] as UnitCard;
+        const bCard = CARDS[b.cardId] as UnitCard;
+        const missingA = aCard.life - a.life;
+        const missingB = bCard.life - b.life;
+        return missingB - missingA || a.instanceId.localeCompare(b.instanceId);
+      });
+
+    const target = candidates[0];
+    if (!target) continue;
+    const targetCard = CARDS[target.cardId] as UnitCard;
+
+    units = units.map((unit) =>
+      unit.instanceId === target.instanceId
+        ? { ...unit, life: Math.min(targetCard.life, unit.life + 1) }
+        : unit
+    );
+  }
+
+  return { ...state, units };
 }
 
 export function createGame(
@@ -98,14 +149,39 @@ export function createGame(
       createPlayerState(player1Deck)
     ],
     nexuses: [
-      ...player0Nexuses.map((position) => ({ owner: 0 as PlayerId, position, life: NEXUS_MAX_LIFE, maxLife: NEXUS_MAX_LIFE })),
-      ...player1Nexuses.map((position) => ({ owner: 1 as PlayerId, position, life: NEXUS_MAX_LIFE, maxLife: NEXUS_MAX_LIFE }))
+      ...player0Nexuses.map((position) => ({
+        owner: 0 as PlayerId,
+        position,
+        life: NEXUS_MAX_LIFE,
+        maxLife: NEXUS_MAX_LIFE
+      })),
+      ...player1Nexuses.map((position) => ({
+        owner: 1 as PlayerId,
+        position,
+        life: NEXUS_MAX_LIFE,
+        maxLife: NEXUS_MAX_LIFE
+      }))
     ],
     units: [],
     structures: [],
     nextInstanceId: 1,
     winner: null
   };
+}
+
+export function effectiveCardCost(state: GameState, cardId: string): number {
+  const card = CARDS[cardId];
+  if (!card) throw new Error('Carta sconosciuta.');
+
+  if (
+    card.type === 'spell' &&
+    hasFriendlyArchmage(state, state.activePlayer) &&
+    !state.players[state.activePlayer].spellDiscountUsedThisTurn
+  ) {
+    return Math.max(0, card.cost - 1);
+  }
+
+  return card.cost;
 }
 
 export function startActivePlayerTurn(state: GameState): GameState {
@@ -115,11 +191,13 @@ export function startActivePlayerTurn(state: GameState): GameState {
   const players = [...state.players] as GameState['players'];
   const current = players[playerIndex];
   const personalTurn = current.personalTurn + 1;
+  const bonusMana = manaCrystalIncome(state, playerIndex, personalTurn);
 
   players[playerIndex] = refillHand({
     ...current,
     personalTurn,
-    mana: current.mana + manaIncomeForPersonalTurn(personalTurn)
+    mana: current.mana + manaIncomeForPersonalTurn(personalTurn) + bonusMana,
+    spellDiscountUsedThisTurn: false
   });
 
   return {
@@ -128,8 +206,20 @@ export function startActivePlayerTurn(state: GameState): GameState {
     players,
     units: state.units.map((unit) =>
       unit.owner === playerIndex
-        ? { ...unit, movedThisTurn: false, cellsMovedThisTurn: 0, attackedThisTurn: false }
+        ? {
+            ...unit,
+            movedThisTurn: false,
+            cellsMovedThisTurn: 0,
+            attackedThisTurn: false,
+            movementModifierThisTurn: unit.pendingMovementModifier,
+            pendingMovementModifier: 0
+          }
         : unit
+    ),
+    structures: state.structures.map((structure) =>
+      structure.owner === playerIndex
+        ? { ...structure, attackedThisTurn: false }
+        : structure
     )
   };
 }
@@ -137,9 +227,11 @@ export function startActivePlayerTurn(state: GameState): GameState {
 export function endTurn(state: GameState): GameState {
   if (state.winner !== null || !state.turnStarted) return state;
 
+  const healed = applyChapelHealing(state, state.activePlayer);
   const nextPlayer: PlayerId = state.activePlayer === 0 ? 1 : 0;
+
   return {
-    ...state,
+    ...healed,
     activePlayer: nextPlayer,
     round: nextPlayer === 0 ? state.round + 1 : state.round,
     turnStarted: false
@@ -170,17 +262,29 @@ export function damageNexus(state: GameState, nexusIndex: number, amount: number
 export function canAffordCard(state: GameState, cardId: string): boolean {
   const card = CARDS[cardId];
   if (!card) return false;
-  return state.players[state.activePlayer].mana >= card.cost;
+  return state.players[state.activePlayer].mana >= effectiveCardCost(state, cardId);
 }
 
 export function payCardCost(state: GameState, cardId: string): GameState {
   const card = CARDS[cardId];
   if (!card) throw new Error('Carta sconosciuta.');
-  if (!canAffordCard(state, cardId)) throw new Error('Mana insufficiente.');
+
+  const cost = effectiveCardCost(state, cardId);
+  if (state.players[state.activePlayer].mana < cost) throw new Error('Mana insufficiente.');
 
   const players = [...state.players] as GameState['players'];
   const current = players[state.activePlayer];
-  players[state.activePlayer] = { ...current, mana: current.mana - card.cost };
+  const usesArchmageDiscount =
+    card.type === 'spell' &&
+    cost < card.cost &&
+    !current.spellDiscountUsedThisTurn;
+
+  players[state.activePlayer] = {
+    ...current,
+    mana: current.mana - cost,
+    spellDiscountUsedThisTurn: current.spellDiscountUsedThisTurn || usesArchmageDiscount
+  };
+
   return { ...state, players };
 }
 
@@ -216,7 +320,7 @@ export function validateUnitDeployment(
   }
 
   if (card.type !== 'unit') errors.push('Solo le unità possono essere schierate con questa azione.');
-  if (player.mana < card.cost) errors.push('Mana insufficiente.');
+  if (!canAffordCard(state, card.id)) errors.push('Mana insufficiente.');
 
   const map = MAPS.find((candidate) => candidate.id === state.mapId);
   if (!map) {
@@ -250,7 +354,9 @@ export function getLegalUnitDeploymentCells(state: GameState, handIndex: number)
   const card = cardId ? CARDS[cardId] : undefined;
   const map = MAPS.find((candidate) => candidate.id === state.mapId);
 
-  if (!card || card.type !== 'unit' || !map || !state.turnStarted || player.mana < card.cost) return [];
+  if (!card || card.type !== 'unit' || !map || !state.turnStarted || !canAffordCard(state, card.id)) {
+    return [];
+  }
 
   const cells: Position[] = [];
   for (const y of deploymentRowsForPlayer(map, state.activePlayer)) {
@@ -267,33 +373,37 @@ export function deployUnit(state: GameState, handIndex: number, position: Positi
   if (errors.length) throw new Error(errors.join(' '));
 
   const playerIndex = state.activePlayer;
-  const players = [...state.players] as GameState['players'];
-  const current = players[playerIndex];
-  const cardId = current.hand[handIndex];
+  const cardId = state.players[playerIndex].hand[handIndex];
   const card = CARDS[cardId] as UnitCard;
+  let next = payCardCost(state, cardId);
 
+  const players = [...next.players] as GameState['players'];
+  const current = players[playerIndex];
   players[playerIndex] = {
     ...current,
-    mana: current.mana - card.cost,
     hand: current.hand.filter((_, index) => index !== handIndex)
   };
 
-  return {
-    ...state,
+  next = {
+    ...next,
     players,
     units: [
-      ...state.units,
+      ...next.units,
       {
-        instanceId: 'unit-' + state.nextInstanceId,
+        instanceId: 'unit-' + next.nextInstanceId,
         owner: playerIndex,
         cardId,
         position,
         life: card.life,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
-        attackedThisTurn: false
+        attackedThisTurn: false,
+        movementModifierThisTurn: 0,
+        pendingMovementModifier: 0
       }
     ],
-    nextInstanceId: state.nextInstanceId + 1
+    nextInstanceId: next.nextInstanceId + 1
   };
+
+  return next;
 }
