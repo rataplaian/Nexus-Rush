@@ -10,19 +10,33 @@ import {
 } from 'react-native';
 import { CARDS, STARTER_DECKS } from './src/game/cards';
 import {
+  canAffordCard,
   createGame,
   deployUnit,
   endTurn,
   getLegalUnitDeploymentCells,
   startActivePlayerTurn
 } from './src/game/engine';
-import { getReachableMovement, moveUnit } from './src/game/movement';
+import {
+  effectiveMovementForUnit,
+  getReachableMovement,
+  moveUnit
+} from './src/game/movement';
 import {
   attackPowerForUnit,
   attackTarget,
   attackTargetAtPosition,
-  getLegalAttackTargets
+  attackWithStructure,
+  getLegalAttackTargets,
+  getLegalStructureAttackTargets
 } from './src/game/combat';
+import {
+  castSpell,
+  effectiveDisplayedCardCost,
+  getLegalStructurePlacementCells,
+  legalTeleportDestinations,
+  placeStructure
+} from './src/game/actions';
 import { MAPS } from './src/game/maps';
 import {
   isLegalNexusCell,
@@ -72,6 +86,8 @@ export default function App() {
   const [game, setGame] = useState<GameState | null>(null);
   const [selectedHandIndex, setSelectedHandIndex] = useState<number | null>(null);
   const [selectedUnitId, setSelectedUnitId] = useState<string | null>(null);
+  const [selectedStructureId, setSelectedStructureId] = useState<string | null>(null);
+  const [spellUnitTargets, setSpellUnitTargets] = useState<string[]>([]);
 
   const map = useMemo(
     () => MAPS.find((candidate) => candidate.mode === mode) ?? MAPS[0],
@@ -88,6 +104,8 @@ export default function App() {
     setGame(null);
     setSelectedHandIndex(null);
     setSelectedUnitId(null);
+    setSelectedStructureId(null);
+    setSpellUnitTargets([]);
     setScreen('setup');
   }
 
@@ -113,6 +131,8 @@ export default function App() {
     setGame(startActivePlayerTurn(created));
     setSelectedHandIndex(null);
     setSelectedUnitId(null);
+    setSelectedStructureId(null);
+    setSpellUnitTargets([]);
     setScreen('game');
   }
 
@@ -121,6 +141,8 @@ export default function App() {
     setGame(null);
     setSelectedHandIndex(null);
     setSelectedUnitId(null);
+    setSelectedStructureId(null);
+    setSpellUnitTargets([]);
     setNexuses([]);
   }
 
@@ -224,6 +246,10 @@ export default function App() {
       setSelectedHandIndex={setSelectedHandIndex}
       selectedUnitId={selectedUnitId}
       setSelectedUnitId={setSelectedUnitId}
+      selectedStructureId={selectedStructureId}
+      setSelectedStructureId={setSelectedStructureId}
+      spellUnitTargets={spellUnitTargets}
+      setSpellUnitTargets={setSpellUnitTargets}
       onExit={returnHome}
     />
   );
@@ -236,26 +262,79 @@ function GameScreen(props: {
   setSelectedHandIndex: (index: number | null) => void;
   selectedUnitId: string | null;
   setSelectedUnitId: (unitId: string | null) => void;
+  selectedStructureId: string | null;
+  setSelectedStructureId: (structureId: string | null) => void;
+  spellUnitTargets: string[];
+  setSpellUnitTargets: (unitIds: string[]) => void;
   onExit: () => void;
 }) {
   const map = MAPS.find((candidate) => candidate.id === props.game.mapId) ?? MAPS[0];
   const player = props.game.players[props.game.activePlayer];
   const deck = STARTER_DECKS.find((candidate) => candidate.id === player.deckId);
-  const deploymentCells = props.selectedHandIndex === null
-    ? []
-    : getLegalUnitDeploymentCells(props.game, props.selectedHandIndex);
-  const movementOptions = props.selectedUnitId === null
-    ? []
-    : getReachableMovement(props.game, props.selectedUnitId);
+  const selectedHandCard = props.selectedHandIndex === null
+    ? null
+    : CARDS[player.hand[props.selectedHandIndex]];
+  const deploymentCells =
+    props.selectedHandIndex !== null && selectedHandCard?.type === 'unit'
+      ? getLegalUnitDeploymentCells(props.game, props.selectedHandIndex)
+      : [];
+  const structurePlacementCells =
+    props.selectedHandIndex !== null && selectedHandCard?.type === 'structure'
+      ? getLegalStructurePlacementCells(props.game, props.selectedHandIndex)
+      : [];
+  const movementOptions =
+    props.selectedHandIndex === null && props.selectedUnitId !== null
+      ? getReachableMovement(props.game, props.selectedUnitId)
+      : [];
   const movementCells = movementOptions.map((option) => option.position);
-  const attackOptions = props.selectedUnitId === null
-    ? []
-    : getLegalAttackTargets(props.game, props.selectedUnitId);
-  const attackCells = attackOptions.map((option) => option.position);
+  const unitAttackOptions =
+    props.selectedHandIndex === null && props.selectedUnitId !== null
+      ? getLegalAttackTargets(props.game, props.selectedUnitId)
+      : [];
+  const structureAttackOptions =
+    props.selectedHandIndex === null && props.selectedStructureId !== null
+      ? getLegalStructureAttackTargets(props.game, props.selectedStructureId)
+      : [];
+  const attackCells = [...unitAttackOptions, ...structureAttackOptions].map((option) => option.position);
   const selectedUnit = props.selectedUnitId === null
     ? null
     : props.game.units.find((unit) => unit.instanceId === props.selectedUnitId) ?? null;
+  const selectedStructure = props.selectedStructureId === null
+    ? null
+    : props.game.structures.find((structure) => structure.instanceId === props.selectedStructureId) ?? null;
   const selectedCard = selectedUnit ? CARDS[selectedUnit.cardId] : null;
+  const selectedStructureCard = selectedStructure ? CARDS[selectedStructure.cardId] : null;
+
+  const spellTargetCells = (() => {
+    if (props.selectedHandIndex === null || selectedHandCard?.type !== 'spell') return [];
+
+    if (
+      selectedHandCard.effect === 'damage' ||
+      selectedHandCard.effect === 'slow' ||
+      selectedHandCard.effect === 'conditional-damage'
+    ) {
+      return props.game.units
+        .filter((unit) => unit.owner !== props.game.activePlayer)
+        .map((unit) => unit.position);
+    }
+
+    if (selectedHandCard.effect === 'teleport') {
+      if (props.spellUnitTargets.length === 0) {
+        return props.game.units
+          .filter((unit) => unit.owner === props.game.activePlayer)
+          .map((unit) => unit.position);
+      }
+      return legalTeleportDestinations(props.game, props.spellUnitTargets[0]);
+    }
+
+    if (selectedHandCard.effect === 'buff-move') {
+      return props.game.units
+        .filter((unit) => unit.owner === props.game.activePlayer && !unit.movedThisTurn)
+        .map((unit) => unit.position);
+    }
+
+    return [];
+  })();
 
   function isLegalDeployment(position: Position) {
     return deploymentCells.some((cell) => samePosition(cell, position));
@@ -269,20 +348,106 @@ function GameScreen(props: {
     return attackCells.some((cell) => samePosition(cell, position));
   }
 
+  function clearSelection() {
+    props.setSelectedHandIndex(null);
+    props.setSelectedUnitId(null);
+    props.setSelectedStructureId(null);
+    props.setSpellUnitTargets([]);
+  }
+
   function handleCellPress(position: Position) {
     if (props.game.winner !== null) return;
 
-    if (props.selectedUnitId !== null && isLegalAttack(position)) {
-      const target = attackTargetAtPosition(props.game, props.selectedUnitId, position);
-      if (target) {
-        const updated = attackTarget(props.game, props.selectedUnitId, target);
-        props.setGame(updated);
-        if (updated.winner !== null) props.setSelectedUnitId(null);
+    const clickedUnit = props.game.units.find((unit) => samePosition(unit.position, position));
+    const clickedStructure = props.game.structures.find((structure) => samePosition(structure.position, position));
+
+    if (props.selectedHandIndex !== null && selectedHandCard) {
+      if (selectedHandCard.type === 'unit' && isLegalDeployment(position)) {
+        props.setGame(deployUnit(props.game, props.selectedHandIndex, position));
+        clearSelection();
         return;
+      }
+
+      if (
+        selectedHandCard.type === 'structure' &&
+        structurePlacementCells.some((cell) => samePosition(cell, position))
+      ) {
+        props.setGame(placeStructure(props.game, props.selectedHandIndex, position));
+        clearSelection();
+        return;
+      }
+
+      if (selectedHandCard.type === 'spell') {
+        if (
+          selectedHandCard.effect === 'damage' ||
+          selectedHandCard.effect === 'slow' ||
+          selectedHandCard.effect === 'conditional-damage'
+        ) {
+          if (clickedUnit && clickedUnit.owner !== props.game.activePlayer) {
+            props.setGame(castSpell(props.game, props.selectedHandIndex, {
+              kind: selectedHandCard.effect,
+              targetUnitId: clickedUnit.instanceId
+            }));
+            clearSelection();
+          }
+          return;
+        }
+
+        if (selectedHandCard.effect === 'teleport') {
+          if (props.spellUnitTargets.length === 0) {
+            if (clickedUnit && clickedUnit.owner === props.game.activePlayer) {
+              props.setSpellUnitTargets([clickedUnit.instanceId]);
+            }
+            return;
+          }
+
+          if (spellTargetCells.some((cell) => samePosition(cell, position))) {
+            props.setGame(castSpell(props.game, props.selectedHandIndex, {
+              kind: 'teleport',
+              unitId: props.spellUnitTargets[0],
+              destination: position
+            }));
+            clearSelection();
+          }
+          return;
+        }
+
+        if (selectedHandCard.effect === 'buff-move') {
+          if (
+            clickedUnit &&
+            clickedUnit.owner === props.game.activePlayer &&
+            !clickedUnit.movedThisTurn
+          ) {
+            const exists = props.spellUnitTargets.includes(clickedUnit.instanceId);
+            if (exists) {
+              props.setSpellUnitTargets(
+                props.spellUnitTargets.filter((id) => id !== clickedUnit.instanceId)
+              );
+            } else if (props.spellUnitTargets.length < 3) {
+              props.setSpellUnitTargets([...props.spellUnitTargets, clickedUnit.instanceId]);
+            }
+          }
+          return;
+        }
       }
     }
 
-    const clickedUnit = props.game.units.find((unit) => samePosition(unit.position, position));
+    if (isLegalAttack(position)) {
+      const owner = props.game.activePlayer;
+      const target = attackTargetAtPosition(props.game, owner, position);
+      if (target && props.selectedUnitId !== null) {
+        const updated = attackTarget(props.game, props.selectedUnitId, target);
+        props.setGame(updated);
+        if (updated.winner !== null) clearSelection();
+        return;
+      }
+      if (target && props.selectedStructureId !== null) {
+        const updated = attackWithStructure(props.game, props.selectedStructureId, target);
+        props.setGame(updated);
+        if (updated.winner !== null) clearSelection();
+        return;
+      }
+    }
 
     if (
       clickedUnit &&
@@ -292,21 +457,30 @@ function GameScreen(props: {
       props.setSelectedUnitId(
         props.selectedUnitId === clickedUnit.instanceId ? null : clickedUnit.instanceId
       );
+      props.setSelectedStructureId(null);
       props.setSelectedHandIndex(null);
+      props.setSpellUnitTargets([]);
       return;
     }
 
-    if (props.selectedHandIndex !== null && isLegalDeployment(position)) {
-      const updated = deployUnit(props.game, props.selectedHandIndex, position);
-      props.setGame(updated);
-      props.setSelectedHandIndex(null);
+    if (
+      clickedStructure &&
+      clickedStructure.owner === props.game.activePlayer &&
+      !clickedStructure.attackedThisTurn
+    ) {
+      props.setSelectedStructureId(
+        props.selectedStructureId === clickedStructure.instanceId
+          ? null
+          : clickedStructure.instanceId
+      );
       props.setSelectedUnitId(null);
+      props.setSelectedHandIndex(null);
+      props.setSpellUnitTargets([]);
       return;
     }
 
     if (props.selectedUnitId !== null && isLegalMovement(position)) {
-      const updated = moveUnit(props.game, props.selectedUnitId, position);
-      props.setGame(updated);
+      props.setGame(moveUnit(props.game, props.selectedUnitId, position));
     }
   }
 
@@ -316,6 +490,8 @@ function GameScreen(props: {
     props.setGame(startActivePlayerTurn(switched));
     props.setSelectedHandIndex(null);
     props.setSelectedUnitId(null);
+    props.setSelectedStructureId(null);
+    props.setSpellUnitTargets([]);
   }
 
   return (
@@ -350,9 +526,13 @@ function GameScreen(props: {
           map={map}
           game={props.game}
           deploymentCells={deploymentCells}
+          structurePlacementCells={structurePlacementCells}
           movementCells={movementCells}
           attackCells={attackCells}
+          spellTargetCells={spellTargetCells}
           selectedUnitId={props.selectedUnitId}
+          selectedStructureId={props.selectedStructureId}
+          spellUnitTargets={props.spellUnitTargets}
           onCellPress={handleCellPress}
         />
 
@@ -365,11 +545,50 @@ function GameScreen(props: {
           <View style={styles.selectedPanel}>
             <Text style={styles.selectedTitle}>{selectedCard.name}</Text>
             <Text style={styles.selectedStats}>
-              ♥ {selectedUnit.life}/{selectedCard.life} · MOV {selectedCard.movement} · RNG {selectedCard.range} · ATK {attackPowerForUnit(props.game, selectedUnit.instanceId)}
+              ♥ {selectedUnit.life}/{selectedCard.life} · MOV {effectiveMovementForUnit(props.game, selectedUnit.instanceId)} · RNG {selectedCard.range} · ATK {attackPowerForUnit(props.game, selectedUnit.instanceId)}
             </Text>
             <Text style={styles.selectedActions}>
               Movimento {selectedUnit.movedThisTurn ? 'usato' : 'disponibile'} · Attacco {selectedUnit.attackedThisTurn ? 'usato' : 'disponibile'}
             </Text>
+            {selectedCard.text ? <Text style={styles.abilityText}>{selectedCard.text}</Text> : null}
+          </View>
+        ) : selectedStructure && selectedStructureCard?.type === 'structure' ? (
+          <View style={styles.selectedPanel}>
+            <Text style={styles.selectedTitle}>{selectedStructureCard.name}</Text>
+            <Text style={styles.selectedStats}>
+              ♥ {selectedStructure.life}/{selectedStructureCard.life} · RNG {selectedStructureCard.range} · ATK {selectedStructureCard.attack}
+            </Text>
+            <Text style={styles.selectedActions}>
+              Attacco {selectedStructure.attackedThisTurn ? 'usato' : 'disponibile'}
+            </Text>
+            {selectedStructureCard.text ? <Text style={styles.abilityText}>{selectedStructureCard.text}</Text> : null}
+          </View>
+        ) : selectedHandCard?.type === 'spell' ? (
+          <View style={styles.selectedPanel}>
+            <Text style={styles.selectedTitle}>{selectedHandCard.name}</Text>
+            <Text style={styles.abilityText}>{selectedHandCard.text}</Text>
+            {selectedHandCard.effect === 'buff-move' ? (
+              <>
+                <Text style={styles.selectedActions}>Selezionati: {props.spellUnitTargets.length}/3</Text>
+                <TouchableOpacity
+                  disabled={props.spellUnitTargets.length === 0}
+                  onPress={() => {
+                    if (props.selectedHandIndex === null) return;
+                    props.setGame(castSpell(props.game, props.selectedHandIndex, {
+                      kind: 'buff-move',
+                      unitIds: props.spellUnitTargets
+                    }));
+                    clearSelection();
+                  }}
+                  style={[
+                    styles.spellConfirmButton,
+                    props.spellUnitTargets.length === 0 && styles.primaryButtonDisabled
+                  ]}
+                >
+                  <Text style={styles.spellConfirmText}>LANCIA ADUNATA</Text>
+                </TouchableOpacity>
+              </>
+            ) : null}
           </View>
         ) : null}
 
@@ -381,43 +600,51 @@ function GameScreen(props: {
           {player.hand.map((cardId, index) => {
             const card = CARDS[cardId];
             const selected = props.selectedHandIndex === index;
-            const affordable = player.mana >= card.cost;
-            const deployable = card.type === 'unit' && affordable;
+            const displayedCost = effectiveDisplayedCardCost(props.game, index) ?? card.cost;
+            const affordable = canAffordCard(props.game, card.id);
+            const playable = affordable;
 
             return (
               <TouchableOpacity
                 key={cardId + '-' + index}
-                disabled={!deployable || props.game.winner !== null}
+                disabled={!playable || props.game.winner !== null}
                 onPress={() => {
                   props.setSelectedHandIndex(selected ? null : index);
                   props.setSelectedUnitId(null);
+                  props.setSelectedStructureId(null);
+                  props.setSpellUnitTargets([]);
                 }}
                 style={[
                   styles.handCard,
                   selected && styles.handCardSelected,
-                  !deployable && styles.handCardDisabled
+                  !playable && styles.handCardDisabled
                 ]}
               >
                 <View style={styles.handCardTop}>
                   <Text numberOfLines={2} style={styles.handCardName}>{card.name}</Text>
-                  <Text style={styles.cardCost}>{card.cost}</Text>
+                  <Text style={styles.cardCost}>{displayedCost}</Text>
                 </View>
                 <Text style={styles.cardType}>{card.type.toUpperCase()}</Text>
                 {card.type === 'unit' ? (
                   <Text style={styles.handStats}>
                     ♥{card.life} · M{card.movement} · R{card.range} · A{card.attack}
                   </Text>
+                ) : card.type === 'structure' ? (
+                  <Text style={styles.handStats}>
+                    ♥{card.life} · R{card.range} · A{card.attack}
+                  </Text>
                 ) : (
-                  <Text style={styles.handStats}>Disponibile in Task 005</Text>
+                  <Text style={styles.handStats}>MAGIA USA E GETTA</Text>
                 )}
+                {card.text ? <Text numberOfLines={3} style={styles.handAbility}>{card.text}</Text> : null}
               </TouchableOpacity>
             );
           })}
         </View>
 
         <Text style={styles.gameHint}>
-          Tocca una tua unità: viola indica il movimento, rosso i bersagli attaccabili.
-          Puoi muovere e attaccare nello stesso turno, in qualunque ordine, una volta per azione.
+          Viola = movimento · rosso = attacco · verde = schieramento · oro = struttura · azzurro = bersaglio magia.
+          Strutture e magie ora usano le regole scritte sulle carte; le magie finiscono negli scarti dopo l'uso.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -488,9 +715,13 @@ function BattleBoard(props: {
   map: MapDefinition;
   game: GameState;
   deploymentCells: Position[];
+  structurePlacementCells: Position[];
   movementCells: Position[];
   attackCells: Position[];
+  spellTargetCells: Position[];
   selectedUnitId: string | null;
+  selectedStructureId: string | null;
+  spellUnitTargets: string[];
   onCellPress: (position: Position) => void;
 }) {
   const cellSize = props.map.width > props.map.height ? 27 : 34;
@@ -503,14 +734,21 @@ function BattleBoard(props: {
             const position = { x, y };
             const nexus = props.game.nexuses.find((item) => samePosition(item.position, position));
             const unit = props.game.units.find((item) => samePosition(item.position, position));
+            const structure = props.game.structures.find((item) => samePosition(item.position, position));
             const deploymentLegal = props.deploymentCells.some((item) => samePosition(item, position));
+            const structurePlacementLegal = props.structurePlacementCells.some((item) => samePosition(item, position));
             const movementLegal = props.movementCells.some((item) => samePosition(item, position));
             const attackLegal = props.attackCells.some((item) => samePosition(item, position));
+            const spellLegal = props.spellTargetCells.some((item) => samePosition(item, position));
             const selectedUnit = unit?.instanceId === props.selectedUnitId;
+            const selectedStructure = structure?.instanceId === props.selectedStructureId;
+            const spellSelectedUnit = unit ? props.spellUnitTargets.includes(unit.instanceId) : false;
             const unitCard = unit ? CARDS[unit.cardId] : null;
+            const structureCard = structure ? CARDS[structure.cardId] : null;
 
             let label = terrainLabels[terrain];
             if (nexus) label = (nexus.owner === 0 ? 'N' : 'X') + nexus.life;
+            if (structure && structureCard) label = 'S' + structure.life;
             if (unit && unitCard) label = unitCard.name.slice(0, 1).toUpperCase() + unit.life;
 
             return (
@@ -523,13 +761,19 @@ function BattleBoard(props: {
                   terrainStyle(terrain),
                   { width: cellSize, height: cellSize },
                   deploymentLegal && styles.deployCell,
+                  structurePlacementLegal && styles.structureCell,
                   movementLegal && styles.moveCell,
+                  spellLegal && styles.spellCell,
                   nexus?.owner === 0 && styles.playerNexus,
                   nexus?.owner === 1 && styles.enemyNexus,
+                  structure?.owner === 0 && styles.playerStructure,
+                  structure?.owner === 1 && styles.enemyStructure,
                   unit?.owner === 0 && styles.playerUnit,
                   unit?.owner === 1 && styles.enemyUnit,
                   attackLegal && styles.attackCell,
-                  selectedUnit && styles.selectedUnit
+                  selectedUnit && styles.selectedUnit,
+                  selectedStructure && styles.selectedUnit,
+                  spellSelectedUnit && styles.spellSelected
                 ]}
               >
                 <Text style={styles.cellText}>{label}</Text>
@@ -613,13 +857,18 @@ const styles = StyleSheet.create({
   hill: { backgroundColor: '#8b7445' },
   legalCell: { borderColor: '#5fe2ff', borderWidth: 1.5 },
   deployCell: { borderColor: '#d9ff6a', borderWidth: 2 },
+  structureCell: { borderColor: '#ffc85c', borderWidth: 2 },
   moveCell: { borderColor: '#f6a8ff', borderWidth: 2 },
+  spellCell: { borderColor: '#65e9ff', borderWidth: 2 },
+  spellSelected: { borderColor: '#65e9ff', borderWidth: 3 },
   attackCell: { borderColor: '#ff5f76', borderWidth: 3 },
   selectedUnit: { borderColor: '#ffffff', borderWidth: 3 },
   playerNexus: { backgroundColor: '#1687b2', borderColor: '#a7efff', borderWidth: 2 },
   enemyNexus: { backgroundColor: '#9c3b4c', borderColor: '#ffd1d8', borderWidth: 2 },
   playerUnit: { backgroundColor: '#2c8fae', borderColor: '#b5f2ff', borderWidth: 2 },
   enemyUnit: { backgroundColor: '#a34b5b', borderColor: '#ffd7dd', borderWidth: 2 },
+  playerStructure: { backgroundColor: '#586e88', borderColor: '#b8d4ef', borderWidth: 2 },
+  enemyStructure: { backgroundColor: '#79505a', borderColor: '#edbbc5', borderWidth: 2 },
   primaryButton: { backgroundColor: '#46c7ef', paddingHorizontal: 24, paddingVertical: 13, borderRadius: 12, marginTop: 16 },
   primaryButtonDisabled: { opacity: 0.3 },
   primaryButtonText: { color: '#07121b', fontWeight: '900', letterSpacing: 0.7 },
@@ -644,6 +893,9 @@ const styles = StyleSheet.create({
   selectedTitle: { color: '#fff', fontWeight: '900', fontSize: 14 },
   selectedStats: { color: '#dbe7f7', fontSize: 11, fontWeight: '700', marginTop: 4 },
   selectedActions: { color: '#91a4c0', fontSize: 10, marginTop: 4 },
+  abilityText: { color: '#aebdd2', fontSize: 10, lineHeight: 15, marginTop: 5 },
+  spellConfirmButton: { backgroundColor: '#65e9ff', borderRadius: 8, paddingVertical: 9, paddingHorizontal: 12, marginTop: 9, alignSelf: 'flex-start' },
+  spellConfirmText: { color: '#07141b', fontWeight: '900', fontSize: 10 },
   victoryPanel: { width: '100%', maxWidth: 820, backgroundColor: '#27391f', borderWidth: 1, borderColor: '#91cf68', borderRadius: 12, padding: 14, marginTop: 12, alignItems: 'center' },
   victoryTitle: { color: '#dfffc8', fontWeight: '900', fontSize: 18 },
   victoryText: { color: '#b7d9a0', marginTop: 4 },
@@ -657,5 +909,6 @@ const styles = StyleSheet.create({
   cardCost: { color: '#08131d', backgroundColor: '#62d7ff', minWidth: 23, height: 23, textAlign: 'center', textAlignVertical: 'center', borderRadius: 12, overflow: 'hidden', fontWeight: '900', fontSize: 11 },
   cardType: { color: '#7387a7', fontSize: 8, fontWeight: '900', letterSpacing: 0.6, marginTop: 5 },
   handStats: { color: '#d6e2f2', fontSize: 9, fontWeight: '700', marginTop: 8, lineHeight: 13 },
+  handAbility: { color: '#94a7c3', fontSize: 8, lineHeight: 11, marginTop: 5 },
   gameHint: { color: '#8fa1bd', maxWidth: 760, textAlign: 'center', fontSize: 11, lineHeight: 16, marginTop: 11 }
 });

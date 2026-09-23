@@ -55,6 +55,28 @@ function orthogonalNeighbors(position: Position, width: number, height: number):
   );
 }
 
+export function effectiveMovementForUnit(state: GameState, unitId: string): number {
+  const unit = state.units.find((candidate) => candidate.instanceId === unitId);
+  if (!unit) throw new Error('Unità non trovata.');
+
+  const card = CARDS[unit.cardId];
+  if (!card || card.type !== 'unit') throw new Error('Carta unità non valida.');
+
+  return Math.max(0, card.movement + unit.movementModifierThisTurn);
+}
+
+function stepCost(
+  card: UnitCard,
+  from: ReturnType<typeof getMap>['terrain'][number][number],
+  to: ReturnType<typeof getMap>['terrain'][number][number],
+  remainingMovement: number
+): number {
+  if (card.id === 'arcane_elemental' && to === 'hill' && from !== 'hill') {
+    return 1;
+  }
+  return movementCost(from, to, remainingMovement);
+}
+
 export function getReachableMovement(state: GameState, unitId: string): MovementOption[] {
   if (state.winner !== null || !state.turnStarted) return [];
 
@@ -65,15 +87,18 @@ export function getReachableMovement(state: GameState, unitId: string): Movement
   if (!card || card.type !== 'unit') return [];
 
   const unitCard = card as UnitCard;
+  const movement = effectiveMovementForUnit(state, unitId);
+  if (movement <= 0) return [];
+
   const map = getMap(state);
   const start = unit.position;
-  const bestRemaining = new Map<string, number>([[positionKey(start), unitCard.movement]]);
+  const bestRemaining = new Map<string, number>([[positionKey(start), movement]]);
   const bestOptions = new Map<string, MovementOption>();
   const frontier: SearchNode[] = [
     {
       position: start,
       path: [start],
-      remainingMovement: unitCard.movement
+      remainingMovement: movement
     }
   ];
 
@@ -86,7 +111,7 @@ export function getReachableMovement(state: GameState, unitId: string): Movement
       if (blocksMovement(nextTerrain)) continue;
       if (isBlockedByPiece(state, next, unitId)) continue;
 
-      const cost = movementCost(currentTerrain, nextTerrain, current.remainingMovement);
+      const cost = stepCost(unitCard, currentTerrain, nextTerrain, current.remainingMovement);
       if (!Number.isFinite(cost) || cost > current.remainingMovement) continue;
 
       const nextRemaining = current.remainingMovement - cost;
@@ -100,7 +125,7 @@ export function getReachableMovement(state: GameState, unitId: string): Movement
       bestOptions.set(key, {
         position: next,
         path,
-        movementSpent: unitCard.movement - nextRemaining,
+        movementSpent: movement - nextRemaining,
         remainingMovement: nextRemaining
       });
       frontier.push({
