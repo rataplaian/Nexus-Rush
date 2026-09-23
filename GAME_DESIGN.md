@@ -168,18 +168,25 @@ Both layouts are mirrored between players.
 
 ## 8. Combat baseline
 
-The first implementation uses deterministic damage.
+Combat uses deterministic damage.
 
-- if a legal target is within Range and line of sight, an attack deals the attacker's Attack value
-- hill modifies the attacker's Attack by +1
+- each unit may attack once per turn
+- a unit may move and attack in either order during the same turn
+- attack Range uses orthogonal/Manhattan grid distance
+- units may target enemy units and enemy Nexus objectives
+- a legal attack deals the attacker's Attack value directly as damage
+- a unit standing on a Hill receives +1 Attack
+- Water does not block line of sight
+- Mountain blocks line of sight; attacks cannot pass through Mountain cells
+- other units and Nexus do not currently block line of sight
+- units reduced to 0 Life are removed immediately
+- a Nexus reduced to 0 Life immediately triggers the mode's victory condition
 - no dice are required in the baseline
-- abilities may modify these rules
-
-Detailed targeting, path-based line of sight, reactions and card ability timing belong to later implementation tasks.
+- card-specific attack modifiers and reactions remain deferred to the ability task
 
 ## 9. Current implementation boundary
 
-Tasks 001–002 establish:
+Tasks 001–004 establish:
 - Expo/React Native foundation
 - card data model
 - two 20-card starter decks
@@ -194,4 +201,4 @@ Tasks 001–002 establish:
 - interactive prototype UI
 - automated baseline tests
 
-Movement is now implemented. Attacks, structures, spell resolution and AI remain layered follow-up systems.
+Movement and baseline combat are now implemented. Structures, spell resolution, card-specific abilities and AI remain layered follow-up systems.
