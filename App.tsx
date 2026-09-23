@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import {
+  Image,
+  ImageBackground,
   SafeAreaView,
   ScrollView,
   StatusBar,
@@ -45,17 +47,24 @@ import {
   validateNexusPositions
 } from './src/game/rules';
 import {
+  CardDefinition,
   GameMode,
   GameState,
   MapDefinition,
   Position,
   TerrainType
 } from './src/game/types';
+import {
+  CARD_ART_ATLAS,
+  CARD_ART_COORDS,
+  factionForCard,
+  mapBackground
+} from './src/ui/visualAssets';
 
 type Screen = 'home' | 'setup' | 'game';
 
 const terrainLabels: Record<TerrainType, string> = {
-  plain: 'P',
+  plain: '',
   water: '≈',
   mountain: '▲',
   hill: '⌃'
@@ -70,6 +79,135 @@ const terrainNames: Record<TerrainType, string> = {
 
 function samePosition(a: Position, b: Position) {
   return a.x === b.x && a.y === b.y;
+}
+
+function CardArtwork(props: { cardId: string; size: number }) {
+  const coord = CARD_ART_COORDS[props.cardId] ?? { col: 0, row: 0 };
+  return (
+    <View style={{ width: props.size, height: props.size, overflow: 'hidden' }}>
+      <Image
+        source={CARD_ART_ATLAS}
+        resizeMode="stretch"
+        style={{
+          position: 'absolute',
+          width: props.size * 5,
+          height: props.size * 4,
+          left: -coord.col * props.size,
+          top: -coord.row * props.size
+        }}
+      />
+    </View>
+  );
+}
+
+function StatBadge(props: { icon: string; value: string | number; accent?: boolean }) {
+  return (
+    <View style={[styles.statBadge, props.accent && styles.statBadgeAccent]}>
+      <Text style={styles.statIcon}>{props.icon}</Text>
+      <Text style={styles.statValue}>{props.value}</Text>
+    </View>
+  );
+}
+
+function cardEffectText(card: CardDefinition): string {
+  if (card.type === 'structure') {
+    return [card.placement, card.text].filter(Boolean).join(' ');
+  }
+  if (card.text) return card.text;
+  if (card.type === 'spell') return 'Magia usa e getta.';
+  return 'Unità base.';
+}
+
+function HandCardVisual(props: {
+  card: CardDefinition;
+  displayedCost: number;
+  selected: boolean;
+  playable: boolean;
+  disabled: boolean;
+  onPress: () => void;
+}) {
+  const faction = factionForCard(props.card.id);
+  const arcane = faction === 'arcane';
+  const stats =
+    props.card.type === 'unit'
+      ? [
+          ['♥', props.card.life],
+          ['↟', props.card.movement],
+          ['◎', props.card.range],
+          ['⚔', props.card.attack]
+        ]
+      : props.card.type === 'structure'
+        ? [
+            ['♥', props.card.life],
+            ['◎', props.card.range],
+            ['⚔', props.card.attack]
+          ]
+        : [['✦', props.card.value]];
+
+  return (
+    <TouchableOpacity
+      disabled={props.disabled}
+      onPress={props.onPress}
+      activeOpacity={0.86}
+      style={[
+        styles.visualCard,
+        arcane ? styles.visualCardArcane : styles.visualCardBastion,
+        props.selected && styles.visualCardSelected,
+        !props.playable && styles.handCardDisabled
+      ]}
+    >
+      <View style={styles.visualCardNameBar}>
+        <Text numberOfLines={2} style={styles.visualCardName}>{props.card.name}</Text>
+        <View style={[styles.factionGem, arcane ? styles.arcaneGem : styles.bastionGem]} />
+      </View>
+
+      <View style={styles.visualCardArtWrap}>
+        <CardArtwork cardId={props.card.id} size={142} />
+        <View style={styles.cardStatRail}>
+          <StatBadge icon="◆" value={props.displayedCost} accent />
+          {stats.map(([icon, value], index) => (
+            <StatBadge key={String(icon) + index} icon={String(icon)} value={value} />
+          ))}
+        </View>
+        <View style={styles.cardTypeRibbon}>
+          <Text style={styles.visualCardType}>
+            {props.card.type === 'unit' ? 'UNITÀ' : props.card.type === 'structure' ? 'STRUTTURA' : 'MAGIA'}
+          </Text>
+        </View>
+      </View>
+
+      <View style={styles.visualCardRules}>
+        <Text numberOfLines={5} style={styles.visualCardRulesText}>
+          {cardEffectText(props.card)}
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function BoardPiece(props: {
+  cardId: string;
+  life: number;
+  owner: 0 | 1;
+  cellSize: number;
+  structure?: boolean;
+}) {
+  const width = Math.max(28, props.cellSize - 12);
+  return (
+    <View
+      style={[
+        styles.boardPiece,
+        { width, height: props.cellSize - 4 },
+        props.owner === 0 ? styles.boardPiecePlayer : styles.boardPieceEnemy,
+        props.structure && styles.boardPieceStructure
+      ]}
+    >
+      <CardArtwork cardId={props.cardId} size={width} />
+      <View style={styles.pieceLifeBadge}>
+        <Text style={styles.pieceLifeText}>♥{props.life}</Text>
+      </View>
+    </View>
+  );
 }
 
 export default function App() {
@@ -606,12 +744,15 @@ function GameScreen(props: {
             const card = CARDS[cardId];
             const selected = props.selectedHandIndex === index;
             const displayedCost = effectiveDisplayedCardCost(props.game, index) ?? card.cost;
-            const affordable = canAffordCard(props.game, card.id);
-            const playable = affordable;
+            const playable = canAffordCard(props.game, card.id);
 
             return (
-              <TouchableOpacity
+              <HandCardVisual
                 key={cardId + '-' + index}
+                card={card}
+                displayedCost={displayedCost}
+                selected={selected}
+                playable={playable}
                 disabled={!playable || props.game.winner !== null}
                 onPress={() => {
                   props.setSelectedHandIndex(selected ? null : index);
@@ -619,30 +760,7 @@ function GameScreen(props: {
                   props.setSelectedStructureId(null);
                   props.setSpellUnitTargets([]);
                 }}
-                style={[
-                  styles.handCard,
-                  selected && styles.handCardSelected,
-                  !playable && styles.handCardDisabled
-                ]}
-              >
-                <View style={styles.handCardTop}>
-                  <Text numberOfLines={2} style={styles.handCardName}>{card.name}</Text>
-                  <Text style={styles.cardCost}>{displayedCost}</Text>
-                </View>
-                <Text style={styles.cardType}>{card.type.toUpperCase()}</Text>
-                {card.type === 'unit' ? (
-                  <Text style={styles.handStats}>
-                    ♥{card.life} · M{card.movement} · R{card.range} · A{card.attack}
-                  </Text>
-                ) : card.type === 'structure' ? (
-                  <Text style={styles.handStats}>
-                    ♥{card.life} · R{card.range} · A{card.attack}
-                  </Text>
-                ) : (
-                  <Text style={styles.handStats}>MAGIA USA E GETTA</Text>
-                )}
-                {card.text ? <Text numberOfLines={3} style={styles.handAbility}>{card.text}</Text> : null}
-              </TouchableOpacity>
+              />
             );
           })}
         </View>
@@ -680,38 +798,49 @@ function SetupBoard(props: {
   playerNexuses: Position[];
   onCellPress: (position: Position) => void;
 }) {
-  const cellSize = props.map.width > props.map.height ? 27 : 34;
+  const cellSize = props.map.width > props.map.height ? 50 : 46;
 
   return (
     <View style={styles.boardFrame}>
-      {props.map.terrain.map((row, y) => (
-        <View key={y} style={styles.boardRow}>
-          {row.map((terrain, x) => {
-            const position = { x, y };
-            const playerNexus = props.playerNexuses.some((item) => samePosition(item, position));
-            const legal = isLegalNexusCell(props.map, 0, position);
+      <ImageBackground
+        source={mapBackground(props.map.mode)}
+        resizeMode="cover"
+        style={styles.boardBackdrop}
+        imageStyle={styles.boardBackgroundImage}
+      >
+        {props.map.terrain.map((row, y) => (
+          <View key={y} style={styles.boardRow}>
+            {row.map((terrain, x) => {
+              const position = { x, y };
+              const playerNexus = props.playerNexuses.some((item) => samePosition(item, position));
+              const legal = isLegalNexusCell(props.map, 0, position);
 
-            return (
-              <TouchableOpacity
-                key={x}
-                activeOpacity={0.8}
-                onPress={() => props.onCellPress(position)}
-                style={[
-                  styles.cell,
-                  terrainStyle(terrain),
-                  { width: cellSize, height: cellSize },
-                  legal && styles.legalCell,
-                  playerNexus && styles.playerNexus
-                ]}
-              >
-                <Text style={styles.cellText}>
-                  {playerNexus ? 'N' : terrainLabels[terrain]}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      ))}
+              return (
+                <TouchableOpacity
+                  key={x}
+                  activeOpacity={0.8}
+                  onPress={() => props.onCellPress(position)}
+                  style={[
+                    styles.cell,
+                    terrainStyle(terrain),
+                    { width: cellSize, height: cellSize },
+                    legal && styles.legalCell,
+                    playerNexus && styles.playerNexus
+                  ]}
+                >
+                  {playerNexus ? (
+                    <View style={styles.nexusMarker}>
+                      <Text style={styles.nexusMarkerText}>N</Text>
+                    </View>
+                  ) : terrain !== 'plain' ? (
+                    <Text style={styles.terrainCornerText}>{terrainLabels[terrain]}</Text>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
+      </ImageBackground>
     </View>
   );
 }
@@ -729,67 +858,82 @@ function BattleBoard(props: {
   spellUnitTargets: string[];
   onCellPress: (position: Position) => void;
 }) {
-  const cellSize = props.map.width > props.map.height ? 27 : 34;
+  const cellSize = props.map.width > props.map.height ? 50 : 46;
 
   return (
     <View style={styles.boardFrame}>
-      {props.map.terrain.map((row, y) => (
-        <View key={y} style={styles.boardRow}>
-          {row.map((terrain, x) => {
-            const position = { x, y };
-            const nexus = props.game.nexuses.find((item) => samePosition(item.position, position));
-            const unit = props.game.units.find((item) => samePosition(item.position, position));
-            const structure = props.game.structures.find((item) => samePosition(item.position, position));
-            const deploymentLegal = props.deploymentCells.some((item) => samePosition(item, position));
-            const structurePlacementLegal = props.structurePlacementCells.some((item) => samePosition(item, position));
-            const movementLegal = props.movementCells.some((item) => samePosition(item, position));
-            const attackLegal = props.attackCells.some((item) => samePosition(item, position));
-            const spellLegal = props.spellTargetCells.some((item) => samePosition(item, position));
-            const selectedUnit = unit?.instanceId === props.selectedUnitId;
-            const selectedStructure = structure?.instanceId === props.selectedStructureId;
-            const spellSelectedUnit = unit ? props.spellUnitTargets.includes(unit.instanceId) : false;
-            const unitCard = unit ? CARDS[unit.cardId] : null;
-            const structureCard = structure ? CARDS[structure.cardId] : null;
+      <ImageBackground
+        source={mapBackground(props.map.mode)}
+        resizeMode="cover"
+        style={styles.boardBackdrop}
+        imageStyle={styles.boardBackgroundImage}
+      >
+        {props.map.terrain.map((row, y) => (
+          <View key={y} style={styles.boardRow}>
+            {row.map((terrain, x) => {
+              const position = { x, y };
+              const nexus = props.game.nexuses.find((item) => samePosition(item.position, position));
+              const unit = props.game.units.find((item) => samePosition(item.position, position));
+              const structure = props.game.structures.find((item) => samePosition(item.position, position));
+              const deploymentLegal = props.deploymentCells.some((item) => samePosition(item, position));
+              const structurePlacementLegal = props.structurePlacementCells.some((item) => samePosition(item, position));
+              const movementLegal = props.movementCells.some((item) => samePosition(item, position));
+              const attackLegal = props.attackCells.some((item) => samePosition(item, position));
+              const spellLegal = props.spellTargetCells.some((item) => samePosition(item, position));
+              const selectedUnit = unit?.instanceId === props.selectedUnitId;
+              const selectedStructure = structure?.instanceId === props.selectedStructureId;
+              const spellSelectedUnit = unit ? props.spellUnitTargets.includes(unit.instanceId) : false;
 
-            let label = terrainLabels[terrain];
-            if (nexus) label = (nexus.owner === 0 ? 'N' : 'X') + nexus.life;
-            if (structure && structureCard) label = 'S' + structure.life;
-            if (unit && unitCard) label = unitCard.name.slice(0, 1).toUpperCase() + unit.life;
-
-            return (
-              <TouchableOpacity
-                key={x}
-                activeOpacity={0.8}
-                onPress={() => props.onCellPress(position)}
-                style={[
-                  styles.cell,
-                  terrainStyle(terrain),
-                  { width: cellSize, height: cellSize },
-                  deploymentLegal && styles.deployCell,
-                  structurePlacementLegal && styles.structureCell,
-                  movementLegal && styles.moveCell,
-                  spellLegal && styles.spellCell,
-                  nexus?.owner === 0 && styles.playerNexus,
-                  nexus?.owner === 1 && styles.enemyNexus,
-                  structure?.owner === 0 && styles.playerStructure,
-                  structure?.owner === 1 && styles.enemyStructure,
-                  unit?.owner === 0 && styles.playerUnit,
-                  unit?.owner === 1 && styles.enemyUnit,
-                  attackLegal && styles.attackCell,
-                  selectedUnit && styles.selectedUnit,
-                  selectedStructure && styles.selectedUnit,
-                  spellSelectedUnit && styles.spellSelected
-                ]}
-              >
-                <Text style={styles.cellText}>{label}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-      ))}
+              return (
+                <TouchableOpacity
+                  key={x}
+                  activeOpacity={0.82}
+                  onPress={() => props.onCellPress(position)}
+                  style={[
+                    styles.cell,
+                    terrainStyle(terrain),
+                    { width: cellSize, height: cellSize },
+                    deploymentLegal && styles.deployCell,
+                    structurePlacementLegal && styles.structureCell,
+                    movementLegal && styles.moveCell,
+                    spellLegal && styles.spellCell,
+                    attackLegal && styles.attackCell,
+                    selectedUnit && styles.selectedUnit,
+                    selectedStructure && styles.selectedUnit,
+                    spellSelectedUnit && styles.spellSelected
+                  ]}
+                >
+                  {unit ? (
+                    <BoardPiece cardId={unit.cardId} life={unit.life} owner={unit.owner} cellSize={cellSize} />
+                  ) : structure ? (
+                    <BoardPiece
+                      cardId={structure.cardId}
+                      life={structure.life}
+                      owner={structure.owner}
+                      cellSize={cellSize}
+                      structure
+                    />
+                  ) : nexus ? (
+                    <View style={[
+                      styles.nexusMarker,
+                      nexus.owner === 0 ? styles.nexusMarkerPlayer : styles.nexusMarkerEnemy
+                    ]}>
+                      <Text style={styles.nexusMarkerText}>{nexus.owner === 0 ? 'N' : 'X'}</Text>
+                      <Text style={styles.nexusLifeText}>♥{nexus.life}</Text>
+                    </View>
+                  ) : terrain !== 'plain' ? (
+                    <Text style={styles.terrainCornerText}>{terrainLabels[terrain]}</Text>
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        ))}
+      </ImageBackground>
     </View>
   );
 }
+
 
 function terrainStyle(terrain: TerrainType) {
   switch (terrain) {
@@ -852,14 +996,17 @@ const styles = StyleSheet.create({
   modeTitle: { color: '#fff', fontSize: 21, fontWeight: '900' },
   modeSubtitle: { color: '#7fdfff', marginTop: 2 },
   instructions: { color: '#b7c4da', maxWidth: 720, textAlign: 'center', marginBottom: 12, lineHeight: 20 },
-  boardFrame: { padding: 7, borderRadius: 14, backgroundColor: '#080c14', borderWidth: 1, borderColor: '#30435e', alignSelf: 'center' },
+  boardFrame: { padding: 6, borderRadius: 16, backgroundColor: '#080c14', borderWidth: 1, borderColor: '#405875', alignSelf: 'center', overflow: 'hidden' },
+  boardBackdrop: { overflow: 'hidden' },
+  boardBackgroundImage: { opacity: 0.72 },
   boardRow: { flexDirection: 'row' },
-  cell: { borderWidth: 0.5, borderColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  cell: { borderWidth: 0.65, borderColor: 'rgba(245,249,255,0.23)', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
   cellText: { color: '#eef4ff', fontWeight: '900', fontSize: 12 },
-  plain: { backgroundColor: '#66744b' },
-  water: { backgroundColor: '#286b88' },
-  mountain: { backgroundColor: '#555967' },
-  hill: { backgroundColor: '#8b7445' },
+  terrainCornerText: { position: 'absolute', left: 3, top: 2, color: 'rgba(255,255,255,0.75)', fontWeight: '900', fontSize: 9, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 2 },
+  plain: { backgroundColor: 'rgba(91,112,61,0.12)' },
+  water: { backgroundColor: 'rgba(30,111,151,0.46)' },
+  mountain: { backgroundColor: 'rgba(62,66,74,0.54)' },
+  hill: { backgroundColor: 'rgba(150,113,55,0.38)' },
   legalCell: { borderColor: '#5fe2ff', borderWidth: 1.5 },
   deployCell: { borderColor: '#d9ff6a', borderWidth: 2 },
   structureCell: { borderColor: '#ffc85c', borderWidth: 2 },
@@ -868,12 +1015,23 @@ const styles = StyleSheet.create({
   spellSelected: { borderColor: '#65e9ff', borderWidth: 3 },
   attackCell: { borderColor: '#ff5f76', borderWidth: 3 },
   selectedUnit: { borderColor: '#ffffff', borderWidth: 3 },
-  playerNexus: { backgroundColor: '#1687b2', borderColor: '#a7efff', borderWidth: 2 },
-  enemyNexus: { backgroundColor: '#9c3b4c', borderColor: '#ffd1d8', borderWidth: 2 },
-  playerUnit: { backgroundColor: '#2c8fae', borderColor: '#b5f2ff', borderWidth: 2 },
-  enemyUnit: { backgroundColor: '#a34b5b', borderColor: '#ffd7dd', borderWidth: 2 },
-  playerStructure: { backgroundColor: '#586e88', borderColor: '#b8d4ef', borderWidth: 2 },
-  enemyStructure: { backgroundColor: '#79505a', borderColor: '#edbbc5', borderWidth: 2 },
+  playerNexus: { borderColor: '#a7efff', borderWidth: 2 },
+  enemyNexus: { borderColor: '#ffd1d8', borderWidth: 2 },
+  playerUnit: { borderColor: '#b5f2ff', borderWidth: 2 },
+  enemyUnit: { borderColor: '#ffd7dd', borderWidth: 2 },
+  playerStructure: { borderColor: '#b8d4ef', borderWidth: 2 },
+  enemyStructure: { borderColor: '#edbbc5', borderWidth: 2 },
+  nexusMarker: { width: '78%', height: '78%', borderRadius: 999, backgroundColor: 'rgba(15,27,45,0.9)', borderWidth: 2, borderColor: '#75ddff', alignItems: 'center', justifyContent: 'center' },
+  nexusMarkerPlayer: { borderColor: '#75ddff', backgroundColor: 'rgba(10,78,110,0.9)' },
+  nexusMarkerEnemy: { borderColor: '#ff95a5', backgroundColor: 'rgba(113,35,48,0.9)' },
+  nexusMarkerText: { color: '#fff', fontSize: 15, fontWeight: '900' },
+  nexusLifeText: { color: '#fff', fontSize: 8, fontWeight: '800', marginTop: -1 },
+  boardPiece: { borderRadius: 5, borderWidth: 2, overflow: 'hidden', backgroundColor: '#111a28', alignItems: 'center', justifyContent: 'flex-start' },
+  boardPiecePlayer: { borderColor: '#8be7ff' },
+  boardPieceEnemy: { borderColor: '#ff8fa2' },
+  boardPieceStructure: { borderStyle: 'solid' },
+  pieceLifeBadge: { position: 'absolute', right: 1, bottom: 1, backgroundColor: 'rgba(8,12,20,0.86)', borderRadius: 7, paddingHorizontal: 3, paddingVertical: 1 },
+  pieceLifeText: { color: '#fff', fontSize: 7, fontWeight: '900' },
   primaryButton: { backgroundColor: '#46c7ef', paddingHorizontal: 24, paddingVertical: 13, borderRadius: 12, marginTop: 16 },
   primaryButtonDisabled: { opacity: 0.3 },
   primaryButtonText: { color: '#07121b', fontWeight: '900', letterSpacing: 0.7 },
@@ -904,16 +1062,27 @@ const styles = StyleSheet.create({
   victoryPanel: { width: '100%', maxWidth: 820, backgroundColor: '#27391f', borderWidth: 1, borderColor: '#91cf68', borderRadius: 12, padding: 14, marginTop: 12, alignItems: 'center' },
   victoryTitle: { color: '#dfffc8', fontWeight: '900', fontSize: 18 },
   victoryText: { color: '#b7d9a0', marginTop: 4 },
-  handTitle: { width: '100%', maxWidth: 820, color: '#fff', fontSize: 16, fontWeight: '900', marginTop: 12, marginBottom: 7 },
-  handRow: { width: '100%', maxWidth: 820, flexDirection: 'row', gap: 6 },
-  handCard: { flex: 1, minWidth: 0, backgroundColor: '#17243a', borderWidth: 1, borderColor: '#2c405f', borderRadius: 9, padding: 7, minHeight: 100 },
-  handCardSelected: { borderColor: '#d9ff6a', borderWidth: 2, backgroundColor: '#243344' },
-  handCardDisabled: { opacity: 0.42 },
-  handCardTop: { flexDirection: 'row', alignItems: 'flex-start', gap: 4 },
-  handCardName: { color: '#fff', fontSize: 11, fontWeight: '900', flex: 1, lineHeight: 14 },
-  cardCost: { color: '#08131d', backgroundColor: '#62d7ff', minWidth: 23, height: 23, textAlign: 'center', textAlignVertical: 'center', borderRadius: 12, overflow: 'hidden', fontWeight: '900', fontSize: 11 },
-  cardType: { color: '#7387a7', fontSize: 8, fontWeight: '900', letterSpacing: 0.6, marginTop: 5 },
-  handStats: { color: '#d6e2f2', fontSize: 9, fontWeight: '700', marginTop: 8, lineHeight: 13 },
-  handAbility: { color: '#94a7c3', fontSize: 8, lineHeight: 11, marginTop: 5 },
+  handTitle: { width: '100%', maxWidth: 1080, color: '#fff', fontSize: 16, fontWeight: '900', marginTop: 14, marginBottom: 8 },
+  handRow: { width: '100%', maxWidth: 1080, flexDirection: 'row', gap: 8, alignItems: 'stretch' },
+  handCardDisabled: { opacity: 0.43 },
+  visualCard: { flex: 1, minWidth: 0, maxWidth: 205, minHeight: 244, borderRadius: 13, borderWidth: 2, overflow: 'hidden', backgroundColor: '#111725' },
+  visualCardArcane: { borderColor: '#7b63ff', backgroundColor: '#12172f' },
+  visualCardBastion: { borderColor: '#cfa54f', backgroundColor: '#2a1719' },
+  visualCardSelected: { borderColor: '#efff71', borderWidth: 3, transform: [{ translateY: -4 }] },
+  visualCardNameBar: { minHeight: 42, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: 'rgba(9,14,24,0.95)', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  visualCardName: { color: '#fff', fontSize: 12, lineHeight: 14, fontWeight: '900', flex: 1, textAlign: 'center' },
+  factionGem: { width: 9, height: 9, borderRadius: 5, marginLeft: 4, borderWidth: 1 },
+  arcaneGem: { backgroundColor: '#8a5cff', borderColor: '#aee9ff' },
+  bastionGem: { backgroundColor: '#b52d3f', borderColor: '#ffd57d' },
+  visualCardArtWrap: { height: 142, overflow: 'hidden', position: 'relative', backgroundColor: '#080c14', alignItems: 'center' },
+  cardStatRail: { position: 'absolute', left: 5, top: 5, gap: 3 },
+  statBadge: { minWidth: 29, height: 23, borderRadius: 7, paddingHorizontal: 3, backgroundColor: 'rgba(7,13,24,0.88)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2 },
+  statBadgeAccent: { backgroundColor: 'rgba(29,95,151,0.94)', borderColor: '#8eeaff' },
+  statIcon: { color: '#f6e4a0', fontSize: 8, fontWeight: '900' },
+  statValue: { color: '#fff', fontSize: 11, fontWeight: '900' },
+  cardTypeRibbon: { position: 'absolute', left: 36, right: 5, bottom: 5, backgroundColor: 'rgba(8,13,23,0.84)', borderRadius: 8, paddingVertical: 3, alignItems: 'center' },
+  visualCardType: { color: '#e9edf7', fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+  visualCardRules: { flex: 1, minHeight: 58, paddingHorizontal: 8, paddingVertical: 7, justifyContent: 'center', backgroundColor: 'rgba(242,236,217,0.96)' },
+  visualCardRulesText: { color: '#27231f', fontSize: 9, lineHeight: 12, fontWeight: '700', textAlign: 'center' },
   gameHint: { color: '#8fa1bd', maxWidth: 760, textAlign: 'center', fontSize: 11, lineHeight: 16, marginTop: 11 }
 });
