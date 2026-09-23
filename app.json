@@ -1,0 +1,23 @@
+{
+  "expo": {
+    "name": "Nexus Rush",
+    "slug": "nexus-rush",
+    "version": "0.1.0",
+    "orientation": "default",
+    "userInterfaceStyle": "dark",
+    "platforms": [
+      "ios",
+      "android",
+      "web"
+    ],
+    "web": {
+      "bundler": "metro"
+    },
+    "android": {
+      "package": "com.nexusrush.game"
+    },
+    "ios": {
+      "bundleIdentifier": "com.nexusrush.game"
+    }
+  }
+}
