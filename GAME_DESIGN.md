@@ -63,13 +63,26 @@ A newly deployed unit may move during the same turn unless a future card ability
 
 ### Structures
 
-Structures remain on a grid cell and have their own Life and, when appropriate, Range and Attack.
+Structures remain on a grid cell, occupy space and can be destroyed.
 
-Their card text defines where they may be placed. Examples include a maximum distance from a friendly Nexus or a specific deployment depth.
+- **Torre Arcana**: placement within 4 cells of a friendly Nexus; can attack once per turn.
+- **Torre di Guardia**: placement within 3 cells of a friendly Nexus; can attack once per turn.
+- **Cristallo del Mana**: placement in the first 3 rows; generates +1 Mana every third owner turn after construction.
+- **Cappella del Nexus**: placement within 3 cells of a friendly Nexus; at end of the owner's turn heals 1 Life to the most wounded adjacent allied unit.
+
+Structures with Attack and Range use the same Range and Mountain line-of-sight rules as units.
 
 ### Spells
 
-Spells resolve their effect and are discarded. They do not occupy a board cell after resolution.
+Spells consume Mana, resolve once and are then placed in the caster's discard pile.
+
+- **Palla di Fuoco**: 4 damage to an enemy unit.
+- **Catene di Ghiaccio**: target enemy unit gets -2 Movement on its next turn.
+- **Traslazione**: teleport a friendly unit up to 3 orthogonal-distance cells to a legal free cell; this does not consume its normal movement action.
+- **Adunata**: up to 3 unmoved friendly units get +1 Movement for the current turn.
+- **Punizione Sacra**: 2 damage to an enemy unit, increased to 4 if that unit is adjacent to a friendly Paladin.
+
+The Arcimago reduces the first spell played each turn by 1 Mana.
 
 ## 4. Mana and turns
 
@@ -182,11 +195,11 @@ Combat uses deterministic damage.
 - units reduced to 0 Life are removed immediately
 - a Nexus reduced to 0 Life immediately triggers the mode's victory condition
 - no dice are required in the baseline
-- card-specific attack modifiers and reactions remain deferred to the ability task
+- starter-card attack modifiers are active; reactions and future advanced abilities remain extensible
 
 ## 9. Current implementation boundary
 
-Tasks 001–004 establish:
+Tasks 001–005 establish:
 - Expo/React Native foundation
 - card data model
 - two 20-card starter decks
@@ -201,4 +214,20 @@ Tasks 001–004 establish:
 - interactive prototype UI
 - automated baseline tests
 
-Movement and baseline combat are now implemented. Structures, spell resolution, card-specific abilities and AI remain layered follow-up systems.
+Movement, combat, structures, starter spells and starter-card abilities are now implemented. AI and presentation/polish remain the next major layers.
+
+
+## 10. Starter ability implementation
+
+### Arcanisti del Nexus
+- Mago da Battaglia: +1 Range while it has not moved this turn.
+- Tessitore del Gelo: a surviving unit hit by it gets -1 Movement on its next turn.
+- Elementale Arcano: ignores the extra Movement cost when climbing onto a Hill.
+- Arcimago: first spell each turn costs 1 less Mana.
+
+### Ordine del Bastione
+- Guardiano dello Scudo: adjacent allied units suffer 1 less damage from ranged attacks.
+- Cavaliere del Nexus: +1 Attack after moving at least 2 cells in the current turn.
+- Campione del Bastione: heals 2 Life after eliminating an enemy unit.
+
+These effects are data-linked to the current starter cards. Future cards should extend the same effect framework rather than add UI-only exceptions.
