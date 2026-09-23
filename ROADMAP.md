@@ -35,7 +35,7 @@
 - hill +1 Attack
 - damage, death and Nexus attacks
 
-## Task 005 — Structures + spells
+## Task 005 — Structures + spells ✅
 - placement-rule framework
 - structure attacks/effects
 - one-shot spell targeting
