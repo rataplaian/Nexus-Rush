@@ -17,6 +17,12 @@ import {
   startActivePlayerTurn
 } from './src/game/engine';
 import { getReachableMovement, moveUnit } from './src/game/movement';
+import {
+  attackPowerForUnit,
+  attackTarget,
+  attackTargetAtPosition,
+  getLegalAttackTargets
+} from './src/game/combat';
 import { MAPS } from './src/game/maps';
 import {
   isLegalNexusCell,
@@ -242,6 +248,14 @@ function GameScreen(props: {
     ? []
     : getReachableMovement(props.game, props.selectedUnitId);
   const movementCells = movementOptions.map((option) => option.position);
+  const attackOptions = props.selectedUnitId === null
+    ? []
+    : getLegalAttackTargets(props.game, props.selectedUnitId);
+  const attackCells = attackOptions.map((option) => option.position);
+  const selectedUnit = props.selectedUnitId === null
+    ? null
+    : props.game.units.find((unit) => unit.instanceId === props.selectedUnitId) ?? null;
+  const selectedCard = selectedUnit ? CARDS[selectedUnit.cardId] : null;
 
   function isLegalDeployment(position: Position) {
     return deploymentCells.some((cell) => samePosition(cell, position));
@@ -251,13 +265,29 @@ function GameScreen(props: {
     return movementCells.some((cell) => samePosition(cell, position));
   }
 
+  function isLegalAttack(position: Position) {
+    return attackCells.some((cell) => samePosition(cell, position));
+  }
+
   function handleCellPress(position: Position) {
+    if (props.game.winner !== null) return;
+
+    if (props.selectedUnitId !== null && isLegalAttack(position)) {
+      const target = attackTargetAtPosition(props.game, props.selectedUnitId, position);
+      if (target) {
+        const updated = attackTarget(props.game, props.selectedUnitId, target);
+        props.setGame(updated);
+        if (updated.winner !== null) props.setSelectedUnitId(null);
+        return;
+      }
+    }
+
     const clickedUnit = props.game.units.find((unit) => samePosition(unit.position, position));
 
     if (
       clickedUnit &&
       clickedUnit.owner === props.game.activePlayer &&
-      !clickedUnit.movedThisTurn
+      (!clickedUnit.movedThisTurn || !clickedUnit.attackedThisTurn)
     ) {
       props.setSelectedUnitId(
         props.selectedUnitId === clickedUnit.instanceId ? null : clickedUnit.instanceId
@@ -277,11 +307,11 @@ function GameScreen(props: {
     if (props.selectedUnitId !== null && isLegalMovement(position)) {
       const updated = moveUnit(props.game, props.selectedUnitId, position);
       props.setGame(updated);
-      props.setSelectedUnitId(null);
     }
   }
 
   function handleEndTurn() {
+    if (props.game.winner !== null) return;
     const switched = endTurn(props.game);
     props.setGame(startActivePlayerTurn(switched));
     props.setSelectedHandIndex(null);
@@ -321,9 +351,27 @@ function GameScreen(props: {
           game={props.game}
           deploymentCells={deploymentCells}
           movementCells={movementCells}
+          attackCells={attackCells}
           selectedUnitId={props.selectedUnitId}
           onCellPress={handleCellPress}
         />
+
+        {props.game.winner !== null ? (
+          <View style={styles.victoryPanel}>
+            <Text style={styles.victoryTitle}>VITTORIA GIOCATORE {props.game.winner + 1}</Text>
+            <Text style={styles.victoryText}>Un Nexus nemico è stato distrutto.</Text>
+          </View>
+        ) : selectedUnit && selectedCard?.type === 'unit' ? (
+          <View style={styles.selectedPanel}>
+            <Text style={styles.selectedTitle}>{selectedCard.name}</Text>
+            <Text style={styles.selectedStats}>
+              ♥ {selectedUnit.life}/{selectedCard.life} · MOV {selectedCard.movement} · RNG {selectedCard.range} · ATK {attackPowerForUnit(props.game, selectedUnit.instanceId)}
+            </Text>
+            <Text style={styles.selectedActions}>
+              Movimento {selectedUnit.movedThisTurn ? 'usato' : 'disponibile'} · Attacco {selectedUnit.attackedThisTurn ? 'usato' : 'disponibile'}
+            </Text>
+          </View>
+        ) : null}
 
         <Text style={styles.handTitle}>
           {deck?.name ?? player.deckId} · Mano
@@ -339,7 +387,7 @@ function GameScreen(props: {
             return (
               <TouchableOpacity
                 key={cardId + '-' + index}
-                disabled={!deployable}
+                disabled={!deployable || props.game.winner !== null}
                 onPress={() => {
                   props.setSelectedHandIndex(selected ? null : index);
                   props.setSelectedUnitId(null);
@@ -368,8 +416,8 @@ function GameScreen(props: {
         </View>
 
         <Text style={styles.gameHint}>
-          Seleziona una carta unità per schierarla, oppure tocca una tua unità sulla plancia per muoverla.
-          Le caselle evidenziate rispettano Movimento, terreni e ostacoli. Ogni unità può muoversi una volta per turno.
+          Tocca una tua unità: viola indica il movimento, rosso i bersagli attaccabili.
+          Puoi muovere e attaccare nello stesso turno, in qualunque ordine, una volta per azione.
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -441,6 +489,7 @@ function BattleBoard(props: {
   game: GameState;
   deploymentCells: Position[];
   movementCells: Position[];
+  attackCells: Position[];
   selectedUnitId: string | null;
   onCellPress: (position: Position) => void;
 }) {
@@ -456,12 +505,13 @@ function BattleBoard(props: {
             const unit = props.game.units.find((item) => samePosition(item.position, position));
             const deploymentLegal = props.deploymentCells.some((item) => samePosition(item, position));
             const movementLegal = props.movementCells.some((item) => samePosition(item, position));
+            const attackLegal = props.attackCells.some((item) => samePosition(item, position));
             const selectedUnit = unit?.instanceId === props.selectedUnitId;
             const unitCard = unit ? CARDS[unit.cardId] : null;
 
             let label = terrainLabels[terrain];
-            if (nexus) label = nexus.owner === 0 ? 'N' : 'X';
-            if (unit && unitCard) label = unitCard.name.slice(0, 1).toUpperCase();
+            if (nexus) label = (nexus.owner === 0 ? 'N' : 'X') + nexus.life;
+            if (unit && unitCard) label = unitCard.name.slice(0, 1).toUpperCase() + unit.life;
 
             return (
               <TouchableOpacity
@@ -478,6 +528,7 @@ function BattleBoard(props: {
                   nexus?.owner === 1 && styles.enemyNexus,
                   unit?.owner === 0 && styles.playerUnit,
                   unit?.owner === 1 && styles.enemyUnit,
+                  attackLegal && styles.attackCell,
                   selectedUnit && styles.selectedUnit
                 ]}
               >
@@ -563,6 +614,7 @@ const styles = StyleSheet.create({
   legalCell: { borderColor: '#5fe2ff', borderWidth: 1.5 },
   deployCell: { borderColor: '#d9ff6a', borderWidth: 2 },
   moveCell: { borderColor: '#f6a8ff', borderWidth: 2 },
+  attackCell: { borderColor: '#ff5f76', borderWidth: 3 },
   selectedUnit: { borderColor: '#ffffff', borderWidth: 3 },
   playerNexus: { backgroundColor: '#1687b2', borderColor: '#a7efff', borderWidth: 2 },
   enemyNexus: { backgroundColor: '#9c3b4c', borderColor: '#ffd1d8', borderWidth: 2 },
@@ -588,6 +640,13 @@ const styles = StyleSheet.create({
   statusLabel: { color: '#7286a6', fontSize: 9, fontWeight: '900', letterSpacing: 0.7 },
   statusValue: { color: '#fff', fontSize: 18, fontWeight: '900', marginTop: 1 },
   sandboxNote: { color: '#8395b1', fontSize: 11, textAlign: 'center', maxWidth: 700, marginBottom: 9 },
+  selectedPanel: { width: '100%', maxWidth: 820, backgroundColor: '#17243a', borderWidth: 1, borderColor: '#405675', borderRadius: 10, padding: 10, marginTop: 10 },
+  selectedTitle: { color: '#fff', fontWeight: '900', fontSize: 14 },
+  selectedStats: { color: '#dbe7f7', fontSize: 11, fontWeight: '700', marginTop: 4 },
+  selectedActions: { color: '#91a4c0', fontSize: 10, marginTop: 4 },
+  victoryPanel: { width: '100%', maxWidth: 820, backgroundColor: '#27391f', borderWidth: 1, borderColor: '#91cf68', borderRadius: 12, padding: 14, marginTop: 12, alignItems: 'center' },
+  victoryTitle: { color: '#dfffc8', fontWeight: '900', fontSize: 18 },
+  victoryText: { color: '#b7d9a0', marginTop: 4 },
   handTitle: { width: '100%', maxWidth: 820, color: '#fff', fontSize: 16, fontWeight: '900', marginTop: 12, marginBottom: 7 },
   handRow: { width: '100%', maxWidth: 820, flexDirection: 'row', gap: 6 },
   handCard: { flex: 1, minWidth: 0, backgroundColor: '#17243a', borderWidth: 1, borderColor: '#2c405f', borderRadius: 9, padding: 7, minHeight: 100 },

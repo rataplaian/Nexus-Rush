@@ -27,7 +27,7 @@
 - hill climb/descent
 - movement preview and confirmation
 
-## Task 004 — Combat
+## Task 004 — Combat ✅
 - attack targeting
 - Range
 - line of sight

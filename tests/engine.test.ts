@@ -24,6 +24,13 @@ import {
   moveUnit,
   validateUnitMove
 } from '../src/game/movement';
+import {
+  attackPowerForUnit,
+  attackTarget,
+  getLegalAttackTargets,
+  hasLineOfSight,
+  validateAttack
+} from '../src/game/combat';
 
 function verticalGame() {
   return createGame(
@@ -353,4 +360,290 @@ test('movement resets on that unit owner next turn', () => {
 
   assert.equal(state.units[0].movedThisTurn, false);
   assert.equal(state.units[0].cellsMovedThisTurn, 0);
+});
+
+
+test('attack range uses orthogonal grid distance', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [
+      {
+        instanceId: 'attacker',
+        owner: 0,
+        cardId: 'arcane_apprentice',
+        position: { x: 4, y: 11 },
+        life: 4,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      },
+      {
+        instanceId: 'near',
+        owner: 1,
+        cardId: 'squire',
+        position: { x: 4, y: 8 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      },
+      {
+        instanceId: 'far',
+        owner: 1,
+        cardId: 'squire',
+        position: { x: 3, y: 8 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      }
+    ]
+  };
+
+  assert.deepEqual(validateAttack(state, 'attacker', { kind: 'unit', id: 'near' }), []);
+  assert.ok(validateAttack(state, 'attacker', { kind: 'unit', id: 'far' }).length > 0);
+});
+
+test('water does not block line of sight or ranged attacks', () => {
+  let state = createGame(
+    'horizontal-dual-nexus',
+    [{ x: 1, y: 7 }, { x: 10, y: 6 }],
+    [{ x: 1, y: 0 }, { x: 10, y: 1 }]
+  );
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [
+      {
+        instanceId: 'attacker',
+        owner: 0,
+        cardId: 'order_crossbow',
+        position: { x: 4, y: 3 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      },
+      {
+        instanceId: 'target',
+        owner: 1,
+        cardId: 'squire',
+        position: { x: 7, y: 3 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      }
+    ]
+  };
+
+  assert.equal(hasLineOfSight(state, { x: 4, y: 3 }, { x: 7, y: 3 }), true);
+  assert.deepEqual(validateAttack(state, 'attacker', { kind: 'unit', id: 'target' }), []);
+});
+
+test('mountains block line of sight and attacks', () => {
+  let state = createGame(
+    'horizontal-dual-nexus',
+    [{ x: 1, y: 7 }, { x: 10, y: 6 }],
+    [{ x: 1, y: 0 }, { x: 10, y: 1 }]
+  );
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [
+      {
+        instanceId: 'attacker',
+        owner: 0,
+        cardId: 'order_crossbow',
+        position: { x: 0, y: 2 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      },
+      {
+        instanceId: 'target',
+        owner: 1,
+        cardId: 'squire',
+        position: { x: 2, y: 2 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      }
+    ]
+  };
+
+  assert.equal(hasLineOfSight(state, { x: 0, y: 2 }, { x: 2, y: 2 }), false);
+  assert.ok(validateAttack(state, 'attacker', { kind: 'unit', id: 'target' }).length > 0);
+});
+
+test('hill grants plus one Attack to the unit standing on it', () => {
+  let state = createGame(
+    'horizontal-dual-nexus',
+    [{ x: 1, y: 7 }, { x: 10, y: 6 }],
+    [{ x: 1, y: 0 }, { x: 10, y: 1 }]
+  );
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [
+      {
+        instanceId: 'attacker',
+        owner: 0,
+        cardId: 'paladin',
+        position: { x: 2, y: 2 },
+        life: 7,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      },
+      {
+        instanceId: 'target',
+        owner: 1,
+        cardId: 'arcane_apprentice',
+        position: { x: 3, y: 2 },
+        life: 4,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      }
+    ]
+  };
+
+  assert.equal(attackPowerForUnit(state, 'attacker'), 4);
+  state = attackTarget(state, 'attacker', { kind: 'unit', id: 'target' });
+  assert.equal(state.units.some((unit) => unit.instanceId === 'target'), false);
+});
+
+test('attacking damages a unit and an eliminated unit leaves the board', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [
+      {
+        instanceId: 'attacker',
+        owner: 0,
+        cardId: 'paladin',
+        position: { x: 4, y: 7 },
+        life: 7,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      },
+      {
+        instanceId: 'target',
+        owner: 1,
+        cardId: 'squire',
+        position: { x: 4, y: 6 },
+        life: 3,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      }
+    ]
+  };
+
+  state = attackTarget(state, 'attacker', { kind: 'unit', id: 'target' });
+  assert.equal(state.units.some((unit) => unit.instanceId === 'target'), false);
+  assert.equal(state.units.find((unit) => unit.instanceId === 'attacker')?.attackedThisTurn, true);
+});
+
+test('a unit can move and attack in the same turn', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [
+      {
+        instanceId: 'attacker',
+        owner: 0,
+        cardId: 'paladin',
+        position: { x: 4, y: 8 },
+        life: 7,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      },
+      {
+        instanceId: 'target',
+        owner: 1,
+        cardId: 'squire',
+        position: { x: 4, y: 6 },
+        life: 5,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      }
+    ]
+  };
+
+  state = moveUnit(state, 'attacker', { x: 4, y: 7 });
+  assert.deepEqual(validateAttack(state, 'attacker', { kind: 'unit', id: 'target' }), []);
+  state = attackTarget(state, 'attacker', { kind: 'unit', id: 'target' });
+  assert.equal(state.units.find((unit) => unit.instanceId === 'attacker')?.attackedThisTurn, true);
+});
+
+test('a unit cannot attack twice in the same turn', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [
+      {
+        instanceId: 'attacker',
+        owner: 0,
+        cardId: 'paladin',
+        position: { x: 4, y: 7 },
+        life: 7,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      },
+      {
+        instanceId: 'target',
+        owner: 1,
+        cardId: 'shield_guardian',
+        position: { x: 4, y: 6 },
+        life: 9,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      }
+    ]
+  };
+
+  state = attackTarget(state, 'attacker', { kind: 'unit', id: 'target' });
+  assert.deepEqual(getLegalAttackTargets(state, 'attacker'), []);
+  assert.ok(validateAttack(state, 'attacker', { kind: 'unit', id: 'target' }).length > 0);
+});
+
+test('attacking a Nexus can end the match', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    nexuses: state.nexuses.map((nexus, index) =>
+      index === 1 ? { ...nexus, life: 3 } : nexus
+    ),
+    units: [{
+      instanceId: 'attacker',
+      owner: 0,
+      cardId: 'archmage',
+      position: { x: 3, y: 4 },
+      life: 7,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false
+    }]
+  };
+
+  assert.deepEqual(validateAttack(state, 'attacker', { kind: 'nexus', index: 1 }), []);
+  state = attackTarget(state, 'attacker', { kind: 'nexus', index: 1 });
+
+  assert.equal(state.nexuses[1].life, 0);
+  assert.equal(state.winner, 0);
 });
