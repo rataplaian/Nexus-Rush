@@ -128,7 +128,7 @@ export function startActivePlayerTurn(state: GameState): GameState {
     players,
     units: state.units.map((unit) =>
       unit.owner === playerIndex
-        ? { ...unit, movedThisTurn: false, attackedThisTurn: false }
+        ? { ...unit, movedThisTurn: false, cellsMovedThisTurn: 0, attackedThisTurn: false }
         : unit
     )
   };
@@ -290,6 +290,7 @@ export function deployUnit(state: GameState, handIndex: number, position: Positi
         position,
         life: card.life,
         movedThisTurn: false,
+        cellsMovedThisTurn: 0,
         attackedThisTurn: false
       }
     ],

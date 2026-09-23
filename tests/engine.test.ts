@@ -19,6 +19,11 @@ import {
   getLegalUnitDeploymentCells,
   startActivePlayerTurn
 } from '../src/game/engine';
+import {
+  getReachableMovement,
+  moveUnit,
+  validateUnitMove
+} from '../src/game/movement';
 
 function verticalGame() {
   return createGame(
@@ -170,4 +175,182 @@ test('non-unit cards are not valid for unit deployment', () => {
   };
 
   assert.deepEqual(getLegalUnitDeploymentCells(state, 0), []);
+});
+
+
+test('movement is orthogonal and limited by the unit Movement value', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [{
+      instanceId: 'unit-test',
+      owner: 0,
+      cardId: 'arcane_apprentice',
+      position: { x: 4, y: 11 },
+      life: 4,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false
+    }]
+  };
+
+  const reachable = getReachableMovement(state, 'unit-test');
+
+  assert.equal(reachable.some((option) => option.position.x === 4 && option.position.y === 9), true);
+  assert.equal(reachable.some((option) => option.position.x === 6 && option.position.y === 11), true);
+  assert.equal(reachable.some((option) => option.position.x === 5 && option.position.y === 10), true);
+  assert.equal(reachable.some((option) => option.position.x === 5 && option.position.y === 9), false);
+});
+
+test('water and mountains cannot be entered during movement', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [{
+      instanceId: 'unit-test',
+      owner: 0,
+      cardId: 'arcane_apprentice',
+      position: { x: 2, y: 5 },
+      life: 4,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false
+    }]
+  };
+
+  const reachable = getReachableMovement(state, 'unit-test');
+  assert.equal(reachable.some((option) => option.position.x === 3 && option.position.y === 5), false);
+  assert.equal(reachable.some((option) => option.position.x === 2 && option.position.y === 4), false);
+});
+
+test('occupied cells block movement and cannot be crossed', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [
+      {
+        instanceId: 'mover',
+        owner: 0,
+        cardId: 'arcane_apprentice',
+        position: { x: 4, y: 11 },
+        life: 4,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      },
+      {
+        instanceId: 'blocker',
+        owner: 0,
+        cardId: 'arcane_apprentice',
+        position: { x: 4, y: 10 },
+        life: 4,
+        movedThisTurn: false,
+        cellsMovedThisTurn: 0,
+        attackedThisTurn: false
+      }
+    ]
+  };
+
+  const reachable = getReachableMovement(state, 'mover');
+  assert.equal(reachable.some((option) => option.position.x === 4 && option.position.y === 10), false);
+  assert.equal(reachable.some((option) => option.position.x === 4 && option.position.y === 9), false);
+});
+
+test('a one-Movement unit can still climb an adjacent hill', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [{
+      instanceId: 'climber',
+      owner: 0,
+      cardId: 'shield_guardian',
+      position: { x: 1, y: 11 },
+      life: 9,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false
+    }]
+  };
+
+  const reachable = getReachableMovement(state, 'climber');
+  assert.equal(reachable.some((option) => option.position.x === 1 && option.position.y === 10), true);
+});
+
+test('descending from a hill grants one extra movement step', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [{
+      instanceId: 'descender',
+      owner: 0,
+      cardId: 'shield_guardian',
+      position: { x: 1, y: 10 },
+      life: 9,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false
+    }]
+  };
+
+  const reachable = getReachableMovement(state, 'descender');
+  assert.equal(reachable.some((option) => option.position.x === 1 && option.position.y === 11), true);
+  assert.equal(reachable.some((option) => option.position.x === 2 && option.position.y === 11), true);
+});
+
+test('moving marks the unit as moved and prevents a second move that turn', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [{
+      instanceId: 'mover',
+      owner: 0,
+      cardId: 'arcane_apprentice',
+      position: { x: 4, y: 11 },
+      life: 4,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false
+    }]
+  };
+
+  state = moveUnit(state, 'mover', { x: 4, y: 10 });
+
+  assert.deepEqual(state.units[0].position, { x: 4, y: 10 });
+  assert.equal(state.units[0].movedThisTurn, true);
+  assert.equal(state.units[0].cellsMovedThisTurn, 1);
+  assert.deepEqual(getReachableMovement(state, 'mover'), []);
+  assert.ok(validateUnitMove(state, 'mover', { x: 4, y: 9 }).length > 0);
+});
+
+test('movement resets on that unit owner next turn', () => {
+  let state = verticalGame();
+  state = startActivePlayerTurn(state);
+  state = {
+    ...state,
+    units: [{
+      instanceId: 'mover',
+      owner: 0,
+      cardId: 'arcane_apprentice',
+      position: { x: 4, y: 11 },
+      life: 4,
+      movedThisTurn: false,
+      cellsMovedThisTurn: 0,
+      attackedThisTurn: false
+    }]
+  };
+
+  state = moveUnit(state, 'mover', { x: 4, y: 10 });
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+  state = endTurn(state);
+  state = startActivePlayerTurn(state);
+
+  assert.equal(state.units[0].movedThisTurn, false);
+  assert.equal(state.units[0].cellsMovedThisTurn, 0);
 });

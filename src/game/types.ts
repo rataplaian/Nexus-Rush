@@ -76,6 +76,7 @@ export interface UnitState {
   position: Position;
   life: number;
   movedThisTurn: boolean;
+  cellsMovedThisTurn: number;
   attackedThisTurn: boolean;
 }
 
