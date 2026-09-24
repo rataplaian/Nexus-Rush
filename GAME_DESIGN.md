@@ -169,16 +169,31 @@ Destroying that Nexus wins immediately.
 
 ## 7. Prototype maps
 
-### Valle dei Due Fronti
+The illustrated battle map is now the visual source of truth for the battlefield shape, while the logical terrain matrix remains the rules source of truth. The two layers are intentionally aligned cell by cell.
 
-12×8 horizontal battlefield. It uses a central lake, flanking mountain ridges and paired hills to create two natural pressure routes without looking like randomly scattered terrain.
+### Valle dei Due Fronti — 12×8
 
-### Passo del Nexus
+Wide tactical arena for the two-Nexus mode.
 
-8×12 vertical battlefield. Long mountain ridges shape a narrow advance around a central basin, producing a more direct assault mode.
+- central vertical water channel
+- two main playable crossings represented as Plain bridge cells
+- compact mirrored ruin/rock blocks represented as Mountain
+- paired Hill cells next to key cover rather than scattered bonuses
+- open deployment rows so both Nexus can still be placed legally
+- 180° rotational symmetry for competitive fairness
 
-Both layouts are mirrored between players.
+### Passo del Nexus — 8×12
 
+Tall tactical arena for the single-Nexus mode.
+
+- transverse river through the middle
+- two-cell central bridge represented as Plain
+- compact mirrored ruin/rock formations represented as Mountain
+- paired Hill positions near the approach lanes
+- clear central and side routes around cover
+- 180° rotational symmetry for competitive fairness
+
+The artwork itself is not decorative geography anymore: water, blocking ruins and elevated tactical positions correspond to the rules overlay.
 ## 8. Combat baseline
 
 Combat uses deterministic damage.
@@ -260,3 +275,13 @@ The AI:
 - uses deterministic tie-breaking so identical game states produce identical decisions
 
 This is intentionally a tactical heuristic planner rather than a scripted opponent. The evaluation system is isolated in `src/game/ai.ts` so deeper search and future difficulty profiles can be added without changing core game rules.
+
+
+### Battle-map rendering contract
+
+- approved map backgrounds are cropped to the exact logical aspect ratios: 12:8 and 8:12
+- the image is stretched exactly to the logical board bounds so grid cells cannot drift relative to the artwork
+- the rules grid stays visible above the image
+- terrain tinting is intentionally subtle: the illustration should communicate the place, while the overlay communicates rules
+- bridges are visual bridge artwork but logical Plain cells
+- decorative scenery outside a blocking Mountain cell never changes gameplay by itself

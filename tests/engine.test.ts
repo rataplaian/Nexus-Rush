@@ -98,11 +98,11 @@ test('hill grants one attack and climbing costs extra movement', () => {
 
 test('horizontal mode requires left/right nexus, different rows and five-cell spacing', () => {
   assert.deepEqual(
-    validateNexusPositions(HORIZONTAL_VALLEY, 0, [{ x: 1, y: 7 }, { x: 10, y: 6 }]),
+    validateNexusPositions(HORIZONTAL_VALLEY, 0, [{ x: 1, y: 6 }, { x: 10, y: 5 }]),
     []
   );
   assert.ok(
-    validateNexusPositions(HORIZONTAL_VALLEY, 0, [{ x: 1, y: 7 }, { x: 7, y: 7 }]).length > 0
+    validateNexusPositions(HORIZONTAL_VALLEY, 0, [{ x: 1, y: 6 }, { x: 7, y: 6 }]).length > 0
   );
 });
 
@@ -114,7 +114,7 @@ test('vertical mode rejects outer corners', () => {
 test('destroying one nexus wins immediately in horizontal mode', () => {
   let state = createGame(
     'horizontal-dual-nexus',
-    [{ x: 1, y: 7 }, { x: 10, y: 6 }],
+    [{ x: 1, y: 6 }, { x: 10, y: 5 }],
     [{ x: 1, y: 0 }, { x: 10, y: 1 }]
   );
   state = damageNexus(state, 2, 10);
@@ -236,7 +236,7 @@ test('water and mountains cannot be entered during movement', () => {
       instanceId: 'unit-test',
       owner: 0,
       cardId: 'arcane_apprentice',
-      position: { x: 2, y: 5 },
+      position: { x: 3, y: 5 },
       life: 4,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
@@ -247,8 +247,8 @@ test('water and mountains cannot be entered during movement', () => {
   };
 
   const reachable = getReachableMovement(state, 'unit-test');
-  assert.equal(reachable.some((option) => option.position.x === 3 && option.position.y === 5), false);
-  assert.equal(reachable.some((option) => option.position.x === 2 && option.position.y === 4), false);
+  assert.equal(reachable.some((option) => option.position.x === 2 && option.position.y === 5), false);
+  assert.equal(reachable.some((option) => option.position.x === 1 && option.position.y === 4), false);
 });
 
 test('occupied cells block movement and cannot be crossed', () => {
@@ -298,7 +298,7 @@ test('a one-Movement unit can still climb an adjacent hill', () => {
       instanceId: 'climber',
       owner: 0,
       cardId: 'shield_guardian',
-      position: { x: 1, y: 11 },
+      position: { x: 1, y: 9 },
       life: 9,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
@@ -309,7 +309,7 @@ test('a one-Movement unit can still climb an adjacent hill', () => {
   };
 
   const reachable = getReachableMovement(state, 'climber');
-  assert.equal(reachable.some((option) => option.position.x === 1 && option.position.y === 10), true);
+  assert.equal(reachable.some((option) => option.position.x === 1 && option.position.y === 8), true);
 });
 
 test('descending from a hill grants one extra movement step', () => {
@@ -321,7 +321,7 @@ test('descending from a hill grants one extra movement step', () => {
       instanceId: 'descender',
       owner: 0,
       cardId: 'shield_guardian',
-      position: { x: 1, y: 10 },
+      position: { x: 1, y: 8 },
       life: 9,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
@@ -332,8 +332,8 @@ test('descending from a hill grants one extra movement step', () => {
   };
 
   const reachable = getReachableMovement(state, 'descender');
-  assert.equal(reachable.some((option) => option.position.x === 1 && option.position.y === 11), true);
-  assert.equal(reachable.some((option) => option.position.x === 2 && option.position.y === 11), true);
+  assert.equal(reachable.some((option) => option.position.x === 1 && option.position.y === 9), true);
+  assert.equal(reachable.some((option) => option.position.x === 2 && option.position.y === 9), true);
 });
 
 test('moving marks the unit as moved and prevents a second move that turn', () => {
@@ -446,7 +446,7 @@ test('attack range uses orthogonal grid distance', () => {
 test('water does not block line of sight or ranged attacks', () => {
   let state = createGame(
     'horizontal-dual-nexus',
-    [{ x: 1, y: 7 }, { x: 10, y: 6 }],
+    [{ x: 1, y: 6 }, { x: 10, y: 5 }],
     [{ x: 1, y: 0 }, { x: 10, y: 1 }]
   );
   state = startActivePlayerTurn(state);
@@ -487,7 +487,7 @@ test('water does not block line of sight or ranged attacks', () => {
 test('mountains block line of sight and attacks', () => {
   let state = createGame(
     'horizontal-dual-nexus',
-    [{ x: 1, y: 7 }, { x: 10, y: 6 }],
+    [{ x: 1, y: 6 }, { x: 10, y: 5 }],
     [{ x: 1, y: 0 }, { x: 10, y: 1 }]
   );
   state = startActivePlayerTurn(state);
@@ -528,7 +528,7 @@ test('mountains block line of sight and attacks', () => {
 test('hill grants plus one Attack to the unit standing on it', () => {
   let state = createGame(
     'horizontal-dual-nexus',
-    [{ x: 1, y: 7 }, { x: 10, y: 6 }],
+    [{ x: 1, y: 6 }, { x: 10, y: 5 }],
     [{ x: 1, y: 0 }, { x: 10, y: 1 }]
   );
   state = startActivePlayerTurn(state);
@@ -694,7 +694,7 @@ test('attacking a Nexus can end the match', () => {
       instanceId: 'attacker',
       owner: 0,
       cardId: 'archmage',
-      position: { x: 3, y: 4 },
+      position: { x: 2, y: 1 },
       life: 7,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
@@ -1163,7 +1163,7 @@ test('arcane elemental ignores the extra cost to climb a hill', () => {
       instanceId: 'elemental',
       owner: 0,
       cardId: 'arcane_elemental',
-      position: { x: 1, y: 11 },
+      position: { x: 1, y: 9 },
       life: 8,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
@@ -1174,7 +1174,7 @@ test('arcane elemental ignores the extra cost to climb a hill', () => {
   };
 
   const reachable = getReachableMovement(state, 'elemental');
-  assert.ok(reachable.some((option) => option.position.x === 1 && option.position.y === 9));
+  assert.ok(reachable.some((option) => option.position.x === 2 && option.position.y === 8));
 });
 
 test('shield guardian reduces ranged damage to adjacent allies by one', () => {
@@ -1428,4 +1428,43 @@ test('AI is deterministic for the same board state', () => {
 
   assert.deepEqual(a.actions, b.actions);
   assert.deepEqual(a.state, b.state);
+});
+
+
+test('battle maps keep exact logical dimensions and rotational symmetry', () => {
+  for (const map of [HORIZONTAL_VALLEY, VERTICAL_PASS]) {
+    assert.equal(map.terrain.length, map.height);
+    assert.equal(map.terrain.every((row) => row.length === map.width), true);
+
+    for (let y = 0; y < map.height; y += 1) {
+      for (let x = 0; x < map.width; x += 1) {
+        assert.equal(
+          map.terrain[y][x],
+          map.terrain[map.height - 1 - y][map.width - 1 - x]
+        );
+      }
+    }
+  }
+});
+
+test('horizontal map has a central water channel with two playable crossings', () => {
+  for (const y of [0, 2, 3, 4, 6]) {
+    assert.equal(HORIZONTAL_VALLEY.terrain[y][5], 'water');
+    assert.equal(HORIZONTAL_VALLEY.terrain[y][6], 'water');
+  }
+
+  for (const y of [1, 5]) {
+    assert.equal(HORIZONTAL_VALLEY.terrain[y][5], 'plain');
+    assert.equal(HORIZONTAL_VALLEY.terrain[y][6], 'plain');
+  }
+});
+
+test('vertical map has a transverse river with a two-cell central bridge', () => {
+  for (const y of [5, 6]) {
+    assert.equal(VERTICAL_PASS.terrain[y][3], 'plain');
+
+    for (const x of [0, 1, 2, 4, 5, 6]) {
+      assert.equal(VERTICAL_PASS.terrain[y][x], 'water');
+    }
+  }
 });

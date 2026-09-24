@@ -10,18 +10,18 @@ export const HORIZONTAL_VALLEY: MapDefinition = {
   name: 'Valle dei Due Fronti',
   mode: 'horizontal-dual-nexus',
   width: 12,
-  height: 8,
+  height: 7,
   deploymentRows: 2,
-  description: 'Una valle simmetrica con lago centrale, dorsali laterali e colline che dominano gli accessi.',
+  description:
+    'Arena larga 12x7: fiume centrale, due ponti, rovine compatte e corsie laterali. Terreno e sfondo sono allineati alla battle map approvata.',
   terrain: [
-    [P,P,P,P,P,P,P,P,P,P,P,P],
-    [P,P,H,P,P,P,P,P,P,H,P,P],
-    [P,M,H,P,P,P,P,P,P,H,M,P],
-    [P,M,P,P,H,W,W,H,P,P,M,P],
-    [P,M,P,P,H,W,W,H,P,P,M,P],
-    [P,M,H,P,P,P,P,P,P,H,M,P],
-    [P,P,H,P,P,P,P,P,P,H,P,P],
-    [P,P,P,P,P,P,P,P,P,P,P,P]
+    [P, P, P, P, P, W, W, P, P, P, P, P],
+    [P, H, M, P, P, P, P, P, P, M, H, P],
+    [P, M, H, M, P, W, W, P, M, H, M, P],
+    [P, P, M, P, P, W, W, P, P, M, P, P],
+    [P, M, H, M, P, W, W, P, M, H, M, P],
+    [P, H, M, P, P, P, P, P, P, M, H, P],
+    [P, P, P, P, P, W, W, P, P, P, P, P]
   ]
 };
 
@@ -29,24 +29,25 @@ export const VERTICAL_PASS: MapDefinition = {
   id: 'vertical-pass',
   name: 'Passo del Nexus',
   mode: 'vertical-single-nexus',
-  width: 8,
+  width: 7,
   height: 12,
   deploymentRows: 2,
-  description: 'Un passo montano lungo e stretto: due dorsali incanalano l’avanzata intorno a un bacino centrale.',
+  description:
+    'Arena verticale 7x12: fiume trasversale, ponte centrale, rovine simmetriche e poche posizioni elevate leggibili. Terreno e sfondo sono allineati.',
   terrain: [
-    [P,P,P,P,P,P,P,P],
-    [P,H,P,P,P,P,H,P],
-    [P,H,M,P,P,M,H,P],
-    [P,P,M,P,P,M,P,P],
-    [P,P,M,H,H,M,P,P],
-    [P,P,P,W,W,P,P,P],
-    [P,P,P,W,W,P,P,P],
-    [P,P,M,H,H,M,P,P],
-    [P,P,M,P,P,M,P,P],
-    [P,H,M,P,P,M,H,P],
-    [P,H,P,P,P,P,H,P],
-    [P,P,P,P,P,P,P,P]
+    [P, P, P, P, P, P, P],
+    [P, P, P, P, P, P, P],
+    [P, P, P, M, P, P, P],
+    [P, H, P, P, P, H, P],
+    [P, M, P, P, P, M, P],
+    [W, W, W, P, W, W, W],
+    [W, W, W, P, W, W, W],
+    [P, M, P, P, P, M, P],
+    [P, H, P, P, P, H, P],
+    [P, P, P, M, P, P, P],
+    [P, P, P, P, P, P, P],
+    [P, P, P, P, P, P, P]
   ]
 };
 
-export const MAPS = [HORIZONTAL_VALLEY, VERTICAL_PASS];
+export const MAPS: MapDefinition[] = [HORIZONTAL_VALLEY, VERTICAL_PASS];

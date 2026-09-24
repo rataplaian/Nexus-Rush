@@ -58,8 +58,8 @@ import {
   CARD_ART_ATLAS,
   CARD_ART_COORDS,
   factionForCard,
-  mapBackground
 } from './src/ui/visualAssets';
+import { mapBackground } from './src/ui/battleMapBackgrounds';
 
 type Screen = 'home' | 'setup' | 'game';
 
@@ -804,7 +804,7 @@ function SetupBoard(props: {
     <View style={styles.boardFrame}>
       <ImageBackground
         source={mapBackground(props.map.mode)}
-        resizeMode="cover"
+        resizeMode="stretch"
         style={styles.boardBackdrop}
         imageStyle={styles.boardBackgroundImage}
       >
@@ -864,7 +864,7 @@ function BattleBoard(props: {
     <View style={styles.boardFrame}>
       <ImageBackground
         source={mapBackground(props.map.mode)}
-        resizeMode="cover"
+        resizeMode="stretch"
         style={styles.boardBackdrop}
         imageStyle={styles.boardBackgroundImage}
       >
@@ -998,15 +998,15 @@ const styles = StyleSheet.create({
   instructions: { color: '#b7c4da', maxWidth: 720, textAlign: 'center', marginBottom: 12, lineHeight: 20 },
   boardFrame: { padding: 6, borderRadius: 16, backgroundColor: '#080c14', borderWidth: 1, borderColor: '#405875', alignSelf: 'center', overflow: 'hidden' },
   boardBackdrop: { overflow: 'hidden' },
-  boardBackgroundImage: { opacity: 0.72 },
+  boardBackgroundImage: { opacity: 0.92 },
   boardRow: { flexDirection: 'row' },
-  cell: { borderWidth: 0.65, borderColor: 'rgba(245,249,255,0.23)', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
+  cell: { borderWidth: 0.7, borderColor: 'rgba(245,249,255,0.38)', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
   cellText: { color: '#eef4ff', fontWeight: '900', fontSize: 12 },
   terrainCornerText: { position: 'absolute', left: 3, top: 2, color: 'rgba(255,255,255,0.75)', fontWeight: '900', fontSize: 9, textShadowColor: 'rgba(0,0,0,0.8)', textShadowRadius: 2 },
-  plain: { backgroundColor: 'rgba(91,112,61,0.12)' },
-  water: { backgroundColor: 'rgba(30,111,151,0.46)' },
-  mountain: { backgroundColor: 'rgba(62,66,74,0.54)' },
-  hill: { backgroundColor: 'rgba(150,113,55,0.38)' },
+  plain: { backgroundColor: 'rgba(91,112,61,0.035)' },
+  water: { backgroundColor: 'rgba(30,111,151,0.20)' },
+  mountain: { backgroundColor: 'rgba(62,66,74,0.24)' },
+  hill: { backgroundColor: 'rgba(150,113,55,0.18)' },
   legalCell: { borderColor: '#5fe2ff', borderWidth: 1.5 },
   deployCell: { borderColor: '#d9ff6a', borderWidth: 2 },
   structureCell: { borderColor: '#ffc85c', borderWidth: 2 },
