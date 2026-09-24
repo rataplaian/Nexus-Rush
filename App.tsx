@@ -1,13 +1,13 @@
 import React, { useMemo, useState } from 'react';
 import {
   Image,
-  ImageBackground,
   SafeAreaView,
   ScrollView,
   StatusBar,
   StyleSheet,
   Text,
   TouchableOpacity,
+  useWindowDimensions,
   View
 } from 'react-native';
 import { CARDS, STARTER_DECKS } from './src/game/cards';
@@ -60,6 +60,7 @@ import {
   factionForCard,
 } from './src/ui/visualAssets';
 import { mapBackground } from './src/ui/battleMapBackgrounds';
+import { scaledBoardGeometry } from './src/ui/boardGeometry';
 
 type Screen = 'home' | 'setup' | 'game';
 
@@ -798,49 +799,80 @@ function SetupBoard(props: {
   playerNexuses: Position[];
   onCellPress: (position: Position) => void;
 }) {
-  const cellSize = props.map.width > props.map.height ? 50 : 46;
+  const { width: viewportWidth } = useWindowDimensions();
+  const geometry = useMemo(
+    () => scaledBoardGeometry(props.map.mode, viewportWidth),
+    [props.map.mode, viewportWidth]
+  );
 
   return (
     <View style={styles.boardFrame}>
-      <ImageBackground
-        source={mapBackground(props.map.mode)}
-        resizeMode="stretch"
-        style={styles.boardBackdrop}
-        imageStyle={styles.boardBackgroundImage}
+      <View
+        style={[
+          styles.boardCanvas,
+          { width: geometry.displayWidth, height: geometry.displayHeight }
+        ]}
       >
-        {props.map.terrain.map((row, y) => (
-          <View key={y} style={styles.boardRow}>
-            {row.map((terrain, x) => {
-              const position = { x, y };
-              const playerNexus = props.playerNexuses.some((item) => samePosition(item, position));
-              const legal = isLegalNexusCell(props.map, 0, position);
+        <Image
+          source={mapBackground(props.map.mode)}
+          resizeMode="stretch"
+          style={StyleSheet.absoluteFillObject}
+        />
 
-              return (
-                <TouchableOpacity
-                  key={x}
-                  activeOpacity={0.8}
-                  onPress={() => props.onCellPress(position)}
-                  style={[
-                    styles.cell,
-                    terrainStyle(terrain),
-                    { width: cellSize, height: cellSize },
-                    legal && styles.legalCell,
-                    playerNexus && styles.playerNexus
-                  ]}
-                >
-                  {playerNexus ? (
-                    <View style={styles.nexusMarker}>
-                      <Text style={styles.nexusMarkerText}>N</Text>
-                    </View>
-                  ) : terrain !== 'plain' ? (
-                    <Text style={styles.terrainCornerText}>{terrainLabels[terrain]}</Text>
-                  ) : null}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ))}
-      </ImageBackground>
+        <View
+          style={[
+            styles.referenceGrid,
+            {
+              left: geometry.gridLeft,
+              top: geometry.gridTop,
+              width: geometry.gridWidth,
+              height: geometry.gridHeight
+            }
+          ]}
+        >
+          {props.map.terrain.map((row, y) => (
+            <View
+              key={y}
+              style={[
+                styles.boardRow,
+                { height: geometry.rowHeights[y] }
+              ]}
+            >
+              {row.map((terrain, x) => {
+                const position = { x, y };
+                const playerNexus = props.playerNexuses.some((item) => samePosition(item, position));
+                const legal = isLegalNexusCell(props.map, 0, position);
+
+                return (
+                  <TouchableOpacity
+                    key={x}
+                    activeOpacity={0.8}
+                    onPress={() => props.onCellPress(position)}
+                    style={[
+                      styles.cell,
+                      terrainStyle(terrain),
+                      {
+                        width: geometry.columnWidths[x],
+                        height: geometry.rowHeights[y]
+                      },
+                      legal && styles.legalCell,
+                      playerNexus && styles.playerNexus
+                    ]}
+                  >
+                    {playerNexus ? (
+                      <View style={styles.nexusMarker}>
+                        <Text style={styles.nexusMarkerText}>N</Text>
+                      </View>
+                    ) : terrain !== 'plain' ? (
+                      <Text style={styles.terrainCornerText}>{terrainLabels[terrain]}</Text>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      </View>
     </View>
   );
 }
@@ -858,78 +890,113 @@ function BattleBoard(props: {
   spellUnitTargets: string[];
   onCellPress: (position: Position) => void;
 }) {
-  const cellSize = props.map.width > props.map.height ? 50 : 46;
+  const { width: viewportWidth } = useWindowDimensions();
+  const geometry = useMemo(
+    () => scaledBoardGeometry(props.map.mode, viewportWidth),
+    [props.map.mode, viewportWidth]
+  );
 
   return (
     <View style={styles.boardFrame}>
-      <ImageBackground
-        source={mapBackground(props.map.mode)}
-        resizeMode="stretch"
-        style={styles.boardBackdrop}
-        imageStyle={styles.boardBackgroundImage}
+      <View
+        style={[
+          styles.boardCanvas,
+          { width: geometry.displayWidth, height: geometry.displayHeight }
+        ]}
       >
-        {props.map.terrain.map((row, y) => (
-          <View key={y} style={styles.boardRow}>
-            {row.map((terrain, x) => {
-              const position = { x, y };
-              const nexus = props.game.nexuses.find((item) => samePosition(item.position, position));
-              const unit = props.game.units.find((item) => samePosition(item.position, position));
-              const structure = props.game.structures.find((item) => samePosition(item.position, position));
-              const deploymentLegal = props.deploymentCells.some((item) => samePosition(item, position));
-              const structurePlacementLegal = props.structurePlacementCells.some((item) => samePosition(item, position));
-              const movementLegal = props.movementCells.some((item) => samePosition(item, position));
-              const attackLegal = props.attackCells.some((item) => samePosition(item, position));
-              const spellLegal = props.spellTargetCells.some((item) => samePosition(item, position));
-              const selectedUnit = unit?.instanceId === props.selectedUnitId;
-              const selectedStructure = structure?.instanceId === props.selectedStructureId;
-              const spellSelectedUnit = unit ? props.spellUnitTargets.includes(unit.instanceId) : false;
+        <Image
+          source={mapBackground(props.map.mode)}
+          resizeMode="stretch"
+          style={StyleSheet.absoluteFillObject}
+        />
 
-              return (
-                <TouchableOpacity
-                  key={x}
-                  activeOpacity={0.82}
-                  onPress={() => props.onCellPress(position)}
-                  style={[
-                    styles.cell,
-                    terrainStyle(terrain),
-                    { width: cellSize, height: cellSize },
-                    deploymentLegal && styles.deployCell,
-                    structurePlacementLegal && styles.structureCell,
-                    movementLegal && styles.moveCell,
-                    spellLegal && styles.spellCell,
-                    attackLegal && styles.attackCell,
-                    selectedUnit && styles.selectedUnit,
-                    selectedStructure && styles.selectedUnit,
-                    spellSelectedUnit && styles.spellSelected
-                  ]}
-                >
-                  {unit ? (
-                    <BoardPiece cardId={unit.cardId} life={unit.life} owner={unit.owner} cellSize={cellSize} />
-                  ) : structure ? (
-                    <BoardPiece
-                      cardId={structure.cardId}
-                      life={structure.life}
-                      owner={structure.owner}
-                      cellSize={cellSize}
-                      structure
-                    />
-                  ) : nexus ? (
-                    <View style={[
-                      styles.nexusMarker,
-                      nexus.owner === 0 ? styles.nexusMarkerPlayer : styles.nexusMarkerEnemy
-                    ]}>
-                      <Text style={styles.nexusMarkerText}>{nexus.owner === 0 ? 'N' : 'X'}</Text>
-                      <Text style={styles.nexusLifeText}>♥{nexus.life}</Text>
-                    </View>
-                  ) : terrain !== 'plain' ? (
-                    <Text style={styles.terrainCornerText}>{terrainLabels[terrain]}</Text>
-                  ) : null}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
-        ))}
-      </ImageBackground>
+        <View
+          style={[
+            styles.referenceGrid,
+            {
+              left: geometry.gridLeft,
+              top: geometry.gridTop,
+              width: geometry.gridWidth,
+              height: geometry.gridHeight
+            }
+          ]}
+        >
+          {props.map.terrain.map((row, y) => (
+            <View
+              key={y}
+              style={[
+                styles.boardRow,
+                { height: geometry.rowHeights[y] }
+              ]}
+            >
+              {row.map((terrain, x) => {
+                const position = { x, y };
+                const nexus = props.game.nexuses.find((item) => samePosition(item.position, position));
+                const unit = props.game.units.find((item) => samePosition(item.position, position));
+                const structure = props.game.structures.find((item) => samePosition(item.position, position));
+                const deploymentLegal = props.deploymentCells.some((item) => samePosition(item, position));
+                const structurePlacementLegal = props.structurePlacementCells.some((item) => samePosition(item, position));
+                const movementLegal = props.movementCells.some((item) => samePosition(item, position));
+                const attackLegal = props.attackCells.some((item) => samePosition(item, position));
+                const spellLegal = props.spellTargetCells.some((item) => samePosition(item, position));
+                const selectedUnit = unit?.instanceId === props.selectedUnitId;
+                const selectedStructure = structure?.instanceId === props.selectedStructureId;
+                const spellSelectedUnit = unit ? props.spellUnitTargets.includes(unit.instanceId) : false;
+                const cellSize = Math.min(
+                  geometry.columnWidths[x],
+                  geometry.rowHeights[y]
+                );
+
+                return (
+                  <TouchableOpacity
+                    key={x}
+                    activeOpacity={0.82}
+                    onPress={() => props.onCellPress(position)}
+                    style={[
+                      styles.cell,
+                      terrainStyle(terrain),
+                      {
+                        width: geometry.columnWidths[x],
+                        height: geometry.rowHeights[y]
+                      },
+                      deploymentLegal && styles.deployCell,
+                      structurePlacementLegal && styles.structureCell,
+                      movementLegal && styles.moveCell,
+                      spellLegal && styles.spellCell,
+                      attackLegal && styles.attackCell,
+                      selectedUnit && styles.selectedUnit,
+                      selectedStructure && styles.selectedUnit,
+                      spellSelectedUnit && styles.spellSelected
+                    ]}
+                  >
+                    {unit ? (
+                      <BoardPiece cardId={unit.cardId} life={unit.life} owner={unit.owner} cellSize={cellSize} />
+                    ) : structure ? (
+                      <BoardPiece
+                        cardId={structure.cardId}
+                        life={structure.life}
+                        owner={structure.owner}
+                        cellSize={cellSize}
+                        structure
+                      />
+                    ) : nexus ? (
+                      <View style={[
+                        styles.nexusMarker,
+                        nexus.owner === 0 ? styles.nexusMarkerPlayer : styles.nexusMarkerEnemy
+                      ]}>
+                        <Text style={styles.nexusMarkerText}>{nexus.owner === 0 ? 'N' : 'X'}</Text>
+                        <Text style={styles.nexusLifeText}>♥{nexus.life}</Text>
+                      </View>
+                    ) : terrain !== 'plain' ? (
+                      <Text style={styles.terrainCornerText}>{terrainLabels[terrain]}</Text>
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          ))}
+        </View>
+      </View>
     </View>
   );
 }
@@ -997,8 +1064,8 @@ const styles = StyleSheet.create({
   modeSubtitle: { color: '#7fdfff', marginTop: 2 },
   instructions: { color: '#b7c4da', maxWidth: 720, textAlign: 'center', marginBottom: 12, lineHeight: 20 },
   boardFrame: { padding: 6, borderRadius: 16, backgroundColor: '#080c14', borderWidth: 1, borderColor: '#405875', alignSelf: 'center', overflow: 'hidden' },
-  boardBackdrop: { overflow: 'hidden' },
-  boardBackgroundImage: { opacity: 0.92 },
+  boardCanvas: { position: 'relative', overflow: 'hidden', backgroundColor: '#080c14' },
+  referenceGrid: { position: 'absolute' },
   boardRow: { flexDirection: 'row' },
   cell: { borderWidth: 0.7, borderColor: 'rgba(245,249,255,0.38)', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' },
   cellText: { color: '#eef4ff', fontWeight: '900', fontSize: 12 },
