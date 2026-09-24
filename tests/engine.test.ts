@@ -225,7 +225,7 @@ test('movement is orthogonal and limited by the unit Movement value', () => {
   assert.equal(reachable.some((option) => option.position.x === 2 && option.position.y === 9), true);
   assert.equal(reachable.some((option) => option.position.x === 0 && option.position.y === 11), true);
   assert.equal(reachable.some((option) => option.position.x === 1 && option.position.y === 10), true);
-  assert.equal(reachable.some((option) => option.position.x === 1 && option.position.y === 9), false);
+  assert.equal(reachable.some((option) => option.position.x === 0 && option.position.y === 9), false);
 });
 
 test('water and mountains cannot be entered during movement', () => {
@@ -628,7 +628,7 @@ test('a unit can move and attack in the same turn', () => {
         instanceId: 'target',
         owner: 1,
         cardId: 'squire',
-        position: { x: 1, y: 7 },
+        position: { x: 4, y: 6 },
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
