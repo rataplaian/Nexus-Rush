@@ -236,7 +236,7 @@ test('water and mountains cannot be entered during movement', () => {
       instanceId: 'unit-test',
       owner: 0,
       cardId: 'arcane_apprentice',
-      position: { x: 2, y: 5 },
+      position: { x: 3, y: 5 },
       life: 4,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
@@ -247,7 +247,7 @@ test('water and mountains cannot be entered during movement', () => {
   };
 
   const reachable = getReachableMovement(state, 'unit-test');
-  assert.equal(reachable.some((option) => option.position.x === 3 && option.position.y === 5), false);
+  assert.equal(reachable.some((option) => option.position.x === 2 && option.position.y === 5), false);
   assert.equal(reachable.some((option) => option.position.x === 2 && option.position.y === 4), false);
 });
 
@@ -1174,7 +1174,7 @@ test('arcane elemental ignores the extra cost to climb a hill', () => {
   };
 
   const reachable = getReachableMovement(state, 'elemental');
-  assert.ok(reachable.some((option) => option.position.x === 1 && option.position.y === 9));
+  assert.ok(reachable.some((option) => option.position.x === 2 && option.position.y === 10));
 });
 
 test('shield guardian reduces ranged damage to adjacent allies by one', () => {
@@ -1428,4 +1428,38 @@ test('AI is deterministic for the same board state', () => {
 
   assert.deepEqual(a.actions, b.actions);
   assert.deepEqual(a.state, b.state);
+});
+
+
+test('battle maps keep exact logical dimensions and rotational symmetry', () => {
+  for (const map of [HORIZONTAL_VALLEY, VERTICAL_PASS]) {
+    assert.equal(map.terrain.length, map.height);
+    assert.equal(map.terrain.every((row) => row.length === map.width), true);
+
+    for (let y = 0; y < map.height; y += 1) {
+      for (let x = 0; x < map.width; x += 1) {
+        assert.equal(
+          map.terrain[y][x],
+          map.terrain[map.height - 1 - y][map.width - 1 - x]
+        );
+      }
+    }
+  }
+});
+
+test('horizontal map has a central water channel with two playable crossings', () => {
+  assert.equal(HORIZONTAL_VALLEY.terrain[1][5], 'water');
+  assert.equal(HORIZONTAL_VALLEY.terrain[1][6], 'water');
+  assert.equal(HORIZONTAL_VALLEY.terrain[2][5], 'plain');
+  assert.equal(HORIZONTAL_VALLEY.terrain[2][6], 'plain');
+  assert.equal(HORIZONTAL_VALLEY.terrain[5][5], 'plain');
+  assert.equal(HORIZONTAL_VALLEY.terrain[5][6], 'plain');
+});
+
+test('vertical map has a transverse river with a two-cell central bridge', () => {
+  assert.equal(VERTICAL_PASS.terrain[5][0], 'water');
+  assert.equal(VERTICAL_PASS.terrain[5][2], 'water');
+  assert.equal(VERTICAL_PASS.terrain[5][3], 'plain');
+  assert.equal(VERTICAL_PASS.terrain[5][4], 'plain');
+  assert.equal(VERTICAL_PASS.terrain[5][5], 'water');
 });
