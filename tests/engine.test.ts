@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { CARDS, STARTER_DECKS, validateDeck } from '../src/game/cards';
 import { HORIZONTAL_VALLEY, VERTICAL_PASS } from '../src/game/maps';
+import { boardReferenceGeometry } from '../src/ui/boardGeometry';
 import {
   attackModifierForTerrain,
   blocksLineOfSight,
@@ -1431,19 +1432,20 @@ test('AI is deterministic for the same board state', () => {
 });
 
 
-test('battle maps keep exact logical dimensions and rotational symmetry', () => {
+test('battle maps keep exact logical dimensions and traced image-grid boundaries', () => {
   for (const map of [HORIZONTAL_VALLEY, VERTICAL_PASS]) {
     assert.equal(map.terrain.length, map.height);
     assert.equal(map.terrain.every((row) => row.length === map.width), true);
 
-    for (let y = 0; y < map.height; y += 1) {
-      for (let x = 0; x < map.width; x += 1) {
-        assert.equal(
-          map.terrain[y][x],
-          map.terrain[map.height - 1 - y][map.width - 1 - x]
-        );
-      }
-    }
+    const reference = boardReferenceGeometry(map.mode);
+    assert.equal(reference.xLines.length, map.width + 1);
+    assert.equal(reference.yLines.length, map.height + 1);
+    assert.ok(reference.xLines.every((value, index, values) => index === 0 || value > values[index - 1]));
+    assert.ok(reference.yLines.every((value, index, values) => index === 0 || value > values[index - 1]));
+    assert.ok(reference.xLines[0] >= 0);
+    assert.ok(reference.yLines[0] >= 0);
+    assert.ok(reference.xLines[reference.xLines.length - 1] <= reference.imageWidth);
+    assert.ok(reference.yLines[reference.yLines.length - 1] <= reference.imageHeight);
   }
 });
 
@@ -1459,11 +1461,12 @@ test('horizontal map has a central water channel with two playable crossings', (
   }
 });
 
-test('vertical map has a transverse river with a two-cell central bridge', () => {
+test('vertical map has a transverse river with the two-column bridge shown in the artwork', () => {
   for (const y of [5, 6]) {
     assert.equal(VERTICAL_PASS.terrain[y][3], 'plain');
+    assert.equal(VERTICAL_PASS.terrain[y][4], 'plain');
 
-    for (const x of [0, 1, 2, 4, 5, 6]) {
+    for (const x of [0, 1, 2, 5, 6]) {
       assert.equal(VERTICAL_PASS.terrain[y][x], 'water');
     }
   }
