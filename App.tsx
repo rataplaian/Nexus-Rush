@@ -816,7 +816,7 @@ function SetupBoard(props: {
         <Image
           source={mapBackground(props.map.mode)}
           resizeMode="stretch"
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         />
 
         <View
@@ -907,7 +907,7 @@ function BattleBoard(props: {
         <Image
           source={mapBackground(props.map.mode)}
           resizeMode="stretch"
-          style={StyleSheet.absoluteFillObject}
+          style={StyleSheet.absoluteFill}
         />
 
         <View
