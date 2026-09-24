@@ -52,6 +52,9 @@
 - architecture ready for future difficulty profiles
 
 ## Task 007 — UX and presentation (in progress)
+- ✅ approved vertical/horizontal battle-map backgrounds integrated
+- ✅ logical terrain grid redesigned to match water, bridges, cover and elevation in the artwork
+- ✅ exact 12×8 / 8×12 background-to-grid aspect alignment
 - ✅ illustrated five-card hand with dynamic stats/effects
 - ✅ vertical stat rail with icons for cost, Life, Movement, Range and Attack
 - ✅ subdued illustrated terrain underlay beneath the authoritative grid
