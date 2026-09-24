@@ -210,7 +210,7 @@ test('movement is orthogonal and limited by the unit Movement value', () => {
       instanceId: 'unit-test',
       owner: 0,
       cardId: 'arcane_apprentice',
-      position: { x: 4, y: 11 },
+      position: { x: 2, y: 11 },
       life: 4,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
@@ -222,10 +222,10 @@ test('movement is orthogonal and limited by the unit Movement value', () => {
 
   const reachable = getReachableMovement(state, 'unit-test');
 
-  assert.equal(reachable.some((option) => option.position.x === 4 && option.position.y === 9), true);
-  assert.equal(reachable.some((option) => option.position.x === 6 && option.position.y === 11), true);
-  assert.equal(reachable.some((option) => option.position.x === 5 && option.position.y === 10), true);
-  assert.equal(reachable.some((option) => option.position.x === 5 && option.position.y === 9), false);
+  assert.equal(reachable.some((option) => option.position.x === 2 && option.position.y === 9), true);
+  assert.equal(reachable.some((option) => option.position.x === 0 && option.position.y === 11), true);
+  assert.equal(reachable.some((option) => option.position.x === 1 && option.position.y === 10), true);
+  assert.equal(reachable.some((option) => option.position.x === 1 && option.position.y === 9), false);
 });
 
 test('water and mountains cannot be entered during movement', () => {
@@ -262,7 +262,7 @@ test('occupied cells block movement and cannot be crossed', () => {
         instanceId: 'mover',
         owner: 0,
         cardId: 'arcane_apprentice',
-        position: { x: 4, y: 11 },
+        position: { x: 2, y: 11 },
         life: 4,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
@@ -346,7 +346,7 @@ test('moving marks the unit as moved and prevents a second move that turn', () =
       instanceId: 'mover',
       owner: 0,
       cardId: 'arcane_apprentice',
-      position: { x: 4, y: 11 },
+      position: { x: 2, y: 11 },
       life: 4,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
@@ -356,13 +356,13 @@ test('moving marks the unit as moved and prevents a second move that turn', () =
     }]
   };
 
-  state = moveUnit(state, 'mover', { x: 4, y: 10 });
+  state = moveUnit(state, 'mover', { x: 2, y: 10 });
 
-  assert.deepEqual(state.units[0].position, { x: 4, y: 10 });
+  assert.deepEqual(state.units[0].position, { x: 2, y: 10 });
   assert.equal(state.units[0].movedThisTurn, true);
   assert.equal(state.units[0].cellsMovedThisTurn, 1);
   assert.deepEqual(getReachableMovement(state, 'mover'), []);
-  assert.ok(validateUnitMove(state, 'mover', { x: 4, y: 9 }).length > 0);
+  assert.ok(validateUnitMove(state, 'mover', { x: 2, y: 9 }).length > 0);
 });
 
 test('movement resets on that unit owner next turn', () => {
@@ -374,7 +374,7 @@ test('movement resets on that unit owner next turn', () => {
       instanceId: 'mover',
       owner: 0,
       cardId: 'arcane_apprentice',
-      position: { x: 4, y: 11 },
+      position: { x: 2, y: 11 },
       life: 4,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
@@ -384,7 +384,7 @@ test('movement resets on that unit owner next turn', () => {
     }]
   };
 
-  state = moveUnit(state, 'mover', { x: 4, y: 10 });
+  state = moveUnit(state, 'mover', { x: 2, y: 10 });
   state = endTurn(state);
   state = startActivePlayerTurn(state);
   state = endTurn(state);
@@ -417,7 +417,7 @@ test('attack range uses orthogonal grid distance', () => {
         instanceId: 'near',
         owner: 1,
         cardId: 'squire',
-        position: { x: 4, y: 8 },
+        position: { x: 2, y: 8 },
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
@@ -429,7 +429,7 @@ test('attack range uses orthogonal grid distance', () => {
         instanceId: 'far',
         owner: 1,
         cardId: 'squire',
-        position: { x: 3, y: 8 },
+        position: { x: 1, y: 8 },
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
@@ -499,7 +499,7 @@ test('mountains block line of sight and attacks', () => {
         instanceId: 'attacker',
         owner: 0,
         cardId: 'order_crossbow',
-        position: { x: 0, y: 2 },
+        position: { x: 5, y: 2 },
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
@@ -522,7 +522,7 @@ test('mountains block line of sight and attacks', () => {
     ]
   };
 
-  assert.equal(hasLineOfSight(state, { x: 0, y: 2 }, { x: 2, y: 2 }), false);
+  assert.equal(hasLineOfSight(state, { x: 2, y: 2 }, { x: 5, y: 2 }), false);
   assert.ok(validateAttack(state, 'attacker', { kind: 'unit', id: 'target' }).length > 0);
 });
 
@@ -628,7 +628,7 @@ test('a unit can move and attack in the same turn', () => {
         instanceId: 'target',
         owner: 1,
         cardId: 'squire',
-        position: { x: 4, y: 6 },
+        position: { x: 1, y: 7 },
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
@@ -1088,7 +1088,7 @@ test('battle mage gains one range if it has not moved', () => {
         instanceId: 'mage',
         owner: 0,
         cardId: 'battle_mage',
-        position: { x: 4, y: 10 },
+        position: { x: 1, y: 11 },
         life: 5,
         movedThisTurn: false,
         cellsMovedThisTurn: 0,
@@ -1325,13 +1325,13 @@ test('AI prioritizes an immediate lethal attack on the enemy Nexus', () => {
   state = {
     ...state,
     nexuses: state.nexuses.map((nexus, index) =>
-      index === 0 ? { ...nexus, life: 3 } : nexus
+      index === 0 ? { ...nexus, position: { x: 1, y: 11 }, life: 3 } : nexus
     ),
     units: [{
       instanceId: 'ai-finisher',
       owner: 1,
       cardId: 'archmage',
-      position: { x: 3, y: 7 },
+      position: { x: 1, y: 7 },
       life: 7,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
