@@ -694,7 +694,7 @@ test('attacking a Nexus can end the match', () => {
       instanceId: 'attacker',
       owner: 0,
       cardId: 'archmage',
-      position: { x: 3, y: 4 },
+      position: { x: 2, y: 1 },
       life: 7,
       movedThisTurn: false,
       cellsMovedThisTurn: 0,
@@ -1448,18 +1448,23 @@ test('battle maps keep exact logical dimensions and rotational symmetry', () => 
 });
 
 test('horizontal map has a central water channel with two playable crossings', () => {
-  assert.equal(HORIZONTAL_VALLEY.terrain[1][5], 'water');
-  assert.equal(HORIZONTAL_VALLEY.terrain[1][6], 'water');
-  assert.equal(HORIZONTAL_VALLEY.terrain[2][5], 'plain');
-  assert.equal(HORIZONTAL_VALLEY.terrain[2][6], 'plain');
-  assert.equal(HORIZONTAL_VALLEY.terrain[5][5], 'plain');
-  assert.equal(HORIZONTAL_VALLEY.terrain[5][6], 'plain');
+  for (const y of [0, 2, 3, 4, 6]) {
+    assert.equal(HORIZONTAL_VALLEY.terrain[y][5], 'water');
+    assert.equal(HORIZONTAL_VALLEY.terrain[y][6], 'water');
+  }
+
+  for (const y of [1, 5]) {
+    assert.equal(HORIZONTAL_VALLEY.terrain[y][5], 'plain');
+    assert.equal(HORIZONTAL_VALLEY.terrain[y][6], 'plain');
+  }
 });
 
 test('vertical map has a transverse river with a two-cell central bridge', () => {
-  assert.equal(VERTICAL_PASS.terrain[5][0], 'water');
-  assert.equal(VERTICAL_PASS.terrain[5][2], 'water');
-  assert.equal(VERTICAL_PASS.terrain[5][3], 'plain');
-  assert.equal(VERTICAL_PASS.terrain[5][4], 'plain');
-  assert.equal(VERTICAL_PASS.terrain[5][5], 'water');
+  for (const y of [5, 6]) {
+    assert.equal(VERTICAL_PASS.terrain[y][3], 'plain');
+
+    for (const x of [0, 1, 2, 4, 5, 6]) {
+      assert.equal(VERTICAL_PASS.terrain[y][x], 'water');
+    }
+  }
 });
