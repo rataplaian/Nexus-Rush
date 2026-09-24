@@ -10,19 +10,18 @@ export const HORIZONTAL_VALLEY: MapDefinition = {
   name: 'Valle dei Due Fronti',
   mode: 'horizontal-dual-nexus',
   width: 12,
-  height: 8,
+  height: 7,
   deploymentRows: 2,
   description:
-    'Arena larga con un canale centrale, due attraversamenti principali, coperture compatte e colline laterali. La griglia segue il disegno della battle map illustrata.',
+    'Arena larga 12x7: fiume centrale, due ponti, rovine compatte e corsie laterali. Terreno e sfondo sono allineati alla battle map approvata.',
   terrain: [
-    [P, P, P, P, P, P, P, P, P, P, P, P],
-    [P, H, P, P, P, W, W, P, P, P, H, P],
-    [P, M, H, P, P, P, P, P, P, H, M, P],
+    [P, P, P, P, P, W, W, P, P, P, P, P],
+    [P, H, M, P, P, P, P, P, P, M, H, P],
+    [P, M, P, M, P, W, W, P, M, P, M, P],
     [P, P, M, P, P, W, W, P, P, M, P, P],
-    [P, P, M, P, P, W, W, P, P, M, P, P],
-    [P, M, H, P, P, P, P, P, P, H, M, P],
-    [P, H, P, P, P, W, W, P, P, P, H, P],
-    [P, P, P, P, P, P, P, P, P, P, P, P]
+    [P, M, P, M, P, W, W, P, M, P, M, P],
+    [P, H, M, P, P, P, P, P, P, M, H, P],
+    [P, P, P, P, P, W, W, P, P, P, P, P]
   ]
 };
 
@@ -30,24 +29,24 @@ export const VERTICAL_PASS: MapDefinition = {
   id: 'vertical-pass',
   name: 'Passo del Nexus',
   mode: 'vertical-single-nexus',
-  width: 8,
+  width: 7,
   height: 12,
   deploymentRows: 2,
   description:
-    'Arena verticale con fiume trasversale, ponte centrale, blocchi di rovine compatti e posizioni elevate simmetriche. La griglia segue il disegno della battle map illustrata.',
+    'Arena verticale 7x12: fiume trasversale, ponte centrale, rovine simmetriche e poche posizioni elevate leggibili. Terreno e sfondo sono allineati.',
   terrain: [
-    [P, P, P, P, P, P, P, P],
-    [P, H, P, P, P, P, H, P],
-    [P, M, H, P, P, H, M, P],
-    [P, M, M, P, P, M, M, P],
-    [P, P, M, P, P, M, P, P],
-    [W, W, W, P, P, W, W, W],
-    [W, W, W, P, P, W, W, W],
-    [P, P, M, P, P, M, P, P],
-    [P, M, M, P, P, M, M, P],
-    [P, M, H, P, P, H, M, P],
-    [P, H, P, P, P, P, H, P],
-    [P, P, P, P, P, P, P, P]
+    [P, P, P, P, P, P, P],
+    [P, P, P, P, P, P, P],
+    [P, P, P, M, P, P, P],
+    [P, H, P, P, P, H, P],
+    [P, M, P, P, P, M, P],
+    [W, W, W, P, W, W, W],
+    [W, W, W, P, W, W, W],
+    [P, M, P, P, P, M, P],
+    [P, H, P, P, P, H, P],
+    [P, P, P, M, P, P, P],
+    [P, H, P, P, P, H, P],
+    [P, P, P, P, P, P, P]
   ]
 };
 
