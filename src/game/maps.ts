@@ -17,9 +17,9 @@ export const HORIZONTAL_VALLEY: MapDefinition = {
   terrain: [
     [P, P, P, P, P, W, W, P, P, P, P, P],
     [P, H, M, P, P, P, P, P, P, M, H, P],
-    [P, M, P, M, P, W, W, P, M, P, M, P],
+    [P, M, H, M, P, W, W, P, M, H, M, P],
     [P, P, M, P, P, W, W, P, P, M, P, P],
-    [P, M, P, M, P, W, W, P, M, P, M, P],
+    [P, M, H, M, P, W, W, P, M, H, M, P],
     [P, H, M, P, P, P, P, P, P, M, H, P],
     [P, P, P, P, P, W, W, P, P, P, P, P]
   ]
@@ -45,7 +45,7 @@ export const VERTICAL_PASS: MapDefinition = {
     [P, M, P, P, P, M, P],
     [P, H, P, P, P, H, P],
     [P, P, P, M, P, P, P],
-    [P, H, P, P, P, H, P],
+    [P, P, P, P, P, P, P],
     [P, P, P, P, P, P, P]
   ]
 };
