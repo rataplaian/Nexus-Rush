@@ -13,15 +13,15 @@ export const HORIZONTAL_VALLEY: MapDefinition = {
   height: 7,
   deploymentRows: 2,
   description:
-    'Arena larga 12x7: fiume centrale, due ponti, rovine compatte e corsie laterali. Terreno e sfondo sono allineati alla battle map approvata.',
+    'Arena 12x7 tracciata direttamente sulle caselle visibili della battle map: fiume centrale, due ponti e rovine coerenti con lo sfondo.',
   terrain: [
     [P, P, P, P, P, W, W, P, P, P, P, P],
     [P, H, M, P, P, P, P, P, P, M, H, P],
-    [P, M, H, M, P, W, W, P, M, H, M, P],
-    [P, P, M, P, P, W, W, P, P, M, P, P],
-    [P, M, H, M, P, W, W, P, M, H, M, P],
+    [P, P, H, H, M, W, W, M, H, H, P, P],
+    [P, P, P, P, M, W, W, M, P, P, P, P],
+    [P, P, M, P, M, W, W, M, P, M, P, P],
     [P, H, M, P, P, P, P, P, P, M, H, P],
-    [P, P, P, P, P, W, W, P, P, P, P, P]
+    [P, P, P, H, M, W, W, M, H, P, P, P]
   ]
 };
 
@@ -33,19 +33,19 @@ export const VERTICAL_PASS: MapDefinition = {
   height: 12,
   deploymentRows: 2,
   description:
-    'Arena verticale 7x12: fiume trasversale, ponte centrale, rovine simmetriche e poche posizioni elevate leggibili. Terreno e sfondo sono allineati.',
+    'Arena verticale 7x12 tracciata sulle caselle visibili della battle map: fiume a due righe, ponte a due colonne e rovine nelle celle illustrate.',
   terrain: [
     [P, P, P, P, P, P, P],
+    [P, H, P, M, M, P, H],
     [P, P, P, P, P, P, P],
-    [P, P, P, M, P, P, P],
+    [P, H, M, P, P, M, H],
+    [P, P, M, P, P, M, P],
+    [W, W, W, P, P, W, W],
+    [W, W, W, P, P, W, W],
+    [P, P, M, P, P, M, P],
     [P, H, P, P, P, H, P],
-    [P, M, P, P, P, M, P],
-    [W, W, W, P, W, W, W],
-    [W, W, W, P, W, W, W],
-    [P, M, P, P, P, M, P],
-    [P, H, P, P, P, H, P],
-    [P, P, P, M, P, P, P],
-    [P, P, P, P, P, P, P],
+    [P, P, P, M, M, P, P],
+    [P, H, P, M, M, P, H],
     [P, P, P, P, P, P, P]
   ]
 };
