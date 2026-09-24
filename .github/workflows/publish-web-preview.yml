@@ -39,6 +39,33 @@ jobs:
       - name: Export Expo web build
         run: npx expo export --platform web --output-dir dist
 
+      - name: Make preview paths portable
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const path = require('path');
+          const indexPath = path.join('dist', 'index.html');
+          let html = fs.readFileSync(indexPath, 'utf8');
+
+          html = html.replaceAll('/rataplaian/Nexus-Rush/web-preview/', './');
+          fs.writeFileSync(indexPath, html);
+
+          const sources = [...html.matchAll(/(?:src|href)="([^"]+)"/g)]
+            .map((match) => match[1])
+            .filter((value) => value.startsWith('./'));
+
+          for (const source of sources) {
+            const localPath = path.join('dist', source.slice(2));
+            if (!fs.existsSync(localPath)) {
+              throw new Error(`Preview references missing asset: ${source}`);
+            }
+          }
+
+          if (!sources.some((source) => source.includes('_expo/static/js/web/'))) {
+            throw new Error('Preview index does not contain a relative Expo web bundle.');
+          }
+          NODE
+
       - name: Publish web-preview branch
         env:
           GH_TOKEN: ${{ github.token }}
