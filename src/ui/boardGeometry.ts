@@ -20,21 +20,21 @@ export type ScaledBoardGeometry = {
 };
 
 const HORIZONTAL_REFERENCE: BoardReferenceGeometry = {
-  imageWidth: 900,
-  imageHeight: 537,
+  imageWidth: 1149,
+  imageHeight: 687,
   maxDisplayWidth: 760,
-  // Pixel boundaries traced from the visible tile seams of the approved image.
-  xLines: [92, 152, 212, 272, 331, 391, 451, 510, 570, 630, 689, 749, 808],
-  yLines: [58, 118, 178, 238, 298, 358, 418, 478]
+  // Boundaries measured directly from the grid drawn in the user's supplied image.
+  xLines: [89, 175, 261, 348, 435, 521, 655, 742, 829, 915, 1001, 1086],
+  yLines: [108, 191, 275, 360, 444, 528]
 };
 
 const VERTICAL_REFERENCE: BoardReferenceGeometry = {
-  imageWidth: 460,
-  imageHeight: 790,
+  imageWidth: 1089,
+  imageHeight: 1445,
   maxDisplayWidth: 460,
-  // Pixel boundaries traced from the visible tile seams of the approved image.
-  xLines: [70, 116, 162, 208, 254, 300, 346, 392],
-  yLines: [82, 134, 186, 238, 290, 342, 394, 446, 498, 550, 602, 654, 706]
+  // 5 columns x 9 logical rows; the river is the single taller middle row.
+  xLines: [226, 354, 482, 610, 740, 867],
+  yLines: [119, 226, 341, 452, 580, 795, 919, 1041, 1162, 1285]
 };
 
 export function boardReferenceGeometry(mode: GameMode): BoardReferenceGeometry {
